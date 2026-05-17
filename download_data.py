@@ -1,4 +1,6 @@
 from SoccerNet.Downloader import SoccerNetDownloader
+from dotenv import load_dotenv
+import os
 
 mySoccerNetDownloader = SoccerNetDownloader(LocalDirectory="data/soccernet")
 
@@ -13,3 +15,12 @@ mySoccerNetDownloader.downloadGames(
     files=["1_ResNET_TF2_PCA512.npy", "2_ResNET_TF2_PCA512.npy"], 
     split=["train", "valid", "test"]
 )
+
+# Vidéos 224p 
+password = os.getenv("SOCCERNET_PASSWORD")
+if password:
+    mySoccerNetDownloader.password = password
+    mySoccerNetDownloader.downloadGames(
+        files=["1_224p.mkv", "2_224p.mkv"],
+        split=["train", "valid", "test"]
+    )

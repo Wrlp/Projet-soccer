@@ -1,1 +1,2 @@
 SoccerNet
+python-dotenv
