@@ -1,7 +1,18 @@
 # Données SoccerNet 
 
 ## Installation
+```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+## Configuration
+Crée un fichier `.env` à la racine :
+```
+SOCCERNET_PASSWORD=ton_mot_de_passe_ici
+```
+Le mot de passe s'obtient en remplissant le formulaire NDA sur soccer-net.org.
 
 ## Étapes
 1. python download_data.py   -> télécharge les données
@@ -28,3 +39,12 @@ with open("outputs/processed/matches.pkl", "rb") as f:
 match = matches[0]
 features = np.load(match["features_path_1"])  # shape (N, 512)
 events = match["events"]
+
+## Notes
+- `.env`, `data/` et `outputs/` sont dans le `.gitignore` - non versionnés
+- Les features `.npy` suffisent pour l'entraînement baseline 
+- Les vidéos `.mkv` sont utiles pour l'option B (GPU requis)
+- Vidéos et données soumises au NDA SoccerNet — ne pas partager
+
+# Supprimer uniquement les vidéos
+find data/soccernet -name "*.mkv" -delete
