@@ -24,5 +24,14 @@ if password:
     mySoccerNetDownloader.password = password
     mySoccerNetDownloader.downloadGames(
         files=["1_224p.mkv", "2_224p.mkv"],
-        split=["train", "valid", "test"]
+        split=["train", "valid", "test"],
+        verbose=True # afficher bar progression
     )
+
+# from SoccerNet.utils import getListGames
+
+# # Télécharger juste 1 match pour tester
+# mySoccerNetDownloader.downloadGame(
+#     files=["1_224p.mkv", "2_224p.mkv"],
+#     game=getListGames(split="valid")[0]
+# )
