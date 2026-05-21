@@ -41,6 +41,15 @@ match = matches[0]
 features = np.load(match["features_path_1"])  # shape (N, 512)
 events = match["events"]
 
+## Entraînement
+Activer l'environnement virtuel puis lancer l'entraînement :
+```bash
+source .venv/bin/activate
+python main.py
+```
+
+Les modèles sont sauvegardés dans `outputs/models/`.
+
 ## Notes
 - `.env`, `data/` et `outputs/` sont dans le `.gitignore` - non versionnés
 - Les features `.npy` suffisent pour l'entraînement baseline 
