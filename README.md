@@ -42,13 +42,31 @@ features = np.load(match["features_path_1"])  # shape (N, 512)
 events = match["events"]
 
 ## Entraînement
-Activer l'environnement virtuel puis lancer l'entraînement :
+## Entraînement
+Suivez ces étapes pour lancer un entraînement local rapide.
+
+1) Créer et activer l'environnement virtuel, puis installer les dépendances :
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirement.txt
+```
+
+2) Préparer les données (génère `outputs/processed/matches.pkl`) :
+
+```bash
+python prepare_data.py
+```
+
+3) Lancer l'entraînement :
+
 ```bash
 source .venv/bin/activate
 python main.py
 ```
 
-Les modèles sont sauvegardés dans `outputs/models/`.
+Les artefacts d'entraînement sont écrits dans `outputs/`.
 
 ## Notes
 - `.env`, `data/` et `outputs/` sont dans le `.gitignore` - non versionnés
