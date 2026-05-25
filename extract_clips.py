@@ -78,7 +78,8 @@ def extract_clip(video_path, time_seconds, npy_path, mp4_path):
         if not ret:
             break
         # frame = cv2.resize(frame, (224, 224))
-        frame = cv2.resize(frame, (112, 112))
+        # frame = cv2.resize(frame, (112, 112))
+        frame = cv2.resize(frame, (720, 720))
         frames.append(frame)
 
     cap.release()
@@ -92,7 +93,8 @@ def extract_clip(video_path, time_seconds, npy_path, mp4_path):
     # Sauvegarde .mp4 (personne 3 : interface)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     # out = cv2.VideoWriter(str(mp4_path), fourcc, video_fps, (224, 224))
-    out = cv2.VideoWriter(str(mp4_path), fourcc, video_fps, (112, 112))
+    # out = cv2.VideoWriter(str(mp4_path), fourcc, video_fps, (112, 112))
+    out = cv2.VideoWriter(str(mp4_path), fourcc, video_fps, (720, 720))
     for frame in frames:
         out.write(frame)
     out.release()
