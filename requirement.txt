@@ -1,2 +1,6 @@
+numpy
+scikit-learn
+matplotlib
 SoccerNet
 python-dotenv
+opencv-python
