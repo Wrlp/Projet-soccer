@@ -68,6 +68,20 @@ python main.py
 
 Les artefacts d'entraînement sont écrits dans `outputs/`.
 
+## API & Frontend (une commande)
+
+```bash
+chmod +x run-dev.sh
+./run-dev.sh
+```
+
+→ Front http://localhost:5173 — API http://localhost:8000
+
+Voir `api/README.md` et `front/README.md`.
+
+- **Évaluation / figures** : `uv run evalution_hyperparams.py` → `figures/`
+- **Clips vidéo** : `uv run extract_clips.py` → `outputs/clips/mp4/`
+
 ## Notes
 - `.env`, `data/` et `outputs/` sont dans le `.gitignore` - non versionnés
 - Les features `.npy` suffisent pour l'entraînement baseline 

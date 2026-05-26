@@ -73,11 +73,17 @@ def evaluate_model(model, X_train_scaled, X_test_scaled, y_train, y_test):
     print(f"  F1-Score  : {test_f1:.4f}")
     
     print(f"\nÉvaluation terminée\n")
-    
-    return {
+
+    summary = {
         "train": {"acc": train_acc, "prec": train_prec, "rec": train_rec, "f1": train_f1},
-        "test": {"acc": test_acc, "prec": test_prec, "rec": test_rec, "f1": test_f1}
+        "test": {"acc": test_acc, "prec": test_prec, "rec": test_rec, "f1": test_f1},
     }
+    import json
+    with open(MODELS_PATH / "metrics_summary.json", "w") as f:
+        json.dump(summary, f, indent=2)
+    print(f"Métriques exportées : {MODELS_PATH / 'metrics_summary.json'}\n")
+
+    return summary
 
 
 def save_model(model, scaler, label_to_idx, idx_to_label, model_name="event_detection_model"):
@@ -89,5 +95,13 @@ def save_model(model, scaler, label_to_idx, idx_to_label, model_name="event_dete
     pickle.dump(scaler, open(MODELS_PATH / "scaler.pkl", "wb"))
     pickle.dump(label_to_idx, open(MODELS_PATH / "label_encoder.pkl", "wb"))
     pickle.dump(idx_to_label, open(MODELS_PATH / "idx_to_label.pkl", "wb"))
+
+    meta_path = MODELS_PATH / "model_meta.json"
+    import json
+
+    n_feat = int(getattr(scaler, "n_features_in_", 512))
+    ctx = max(0, (n_feat // 512 - 1) // 2) if n_feat % 512 == 0 else 0
+    with open(meta_path, "w") as f:
+        json.dump({"n_features": n_feat, "context_frames": ctx}, f, indent=2)
     
     print(f"Modèle sauvegardé dans {MODELS_PATH}/\n")
