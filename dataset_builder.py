@@ -4,7 +4,34 @@ from sklearn.model_selection import train_test_split
 from collections import Counter
 
 
-def build_dataset(matches, context_frames=3):
+def _extract_window(features, center_idx, window_size_frames):
+    """Extraire une fenêtre temporelle de taille fixe autour d'un index central."""
+    n_frames = len(features)
+
+    if window_size_frames <= 0:
+        raise ValueError("window_size_frames doit être strictement positif")
+
+    start_idx = center_idx - window_size_frames // 2
+    end_idx = start_idx + window_size_frames
+
+    if start_idx < 0:
+        start_idx = 0
+        end_idx = min(window_size_frames, n_frames)
+
+    if end_idx > n_frames:
+        end_idx = n_frames
+        start_idx = max(0, end_idx - window_size_frames)
+
+    window = features[start_idx:end_idx]
+
+    if len(window) < window_size_frames:
+        padding = np.zeros((window_size_frames - len(window), features.shape[1]))
+        window = np.vstack([window, padding])
+
+    return window
+
+
+def build_dataset(matches, context_frames=3, window_size_frames=None):
     """
     Construire X (features) et y (labels) pour l'entraînement.
     
@@ -16,10 +43,17 @@ def build_dataset(matches, context_frames=3):
     Args:
         matches: liste des matchs
         context_frames: nombre de frames avant/après à inclure dans le contexte
+        window_size_frames: taille exacte de la fenêtre temporelle à extraire
     """
     print("Construction du dataset (avec contexte temporel)")
     print("=" * 50)
-    print(f"Contexte: {context_frames} frames avant/après l'événement\n")
+
+    if window_size_frames is None:
+        window_size_frames = context_frames * 2 + 1
+        print(f"Contexte: {context_frames} frames avant/après l'événement")
+        print(f"Taille de fenêtre effective: {window_size_frames} frames\n")
+    else:
+        print(f"Taille de fenêtre fixe: {window_size_frames} frames\n")
     
     # Créer l'encodeur de labels
     all_events = []
@@ -57,19 +91,8 @@ def build_dataset(matches, context_frames=3):
                     center_idx = min(int(event["time_seconds"] / 2), n_frames_2 - 1)
                     features = features_2
                 
-                # Extraire le contexte
-                start_idx = max(0, center_idx - context_frames)
-                end_idx = min(len(features), center_idx + context_frames + 1)
-                
-                context_features = features[start_idx:end_idx]
-                
-                # Padding
-                target_size = context_frames * 2 + 1
-                if len(context_features) < target_size:
-                    # Padder avec des zéros si le contexte est incomplet
-                    padding = np.zeros((target_size - len(context_features), 512))
-                    context_features = np.vstack([context_features, padding])
-                
+                # Extraire une fenêtre temporelle fixe autour de l'événement
+                context_features = _extract_window(features, center_idx, window_size_frames)
                 feature_vector = context_features.flatten()
                 
                 X_list.append(feature_vector)

@@ -16,8 +16,8 @@ def main():
     matches = load_matches()
     explore_data(matches)
     
-    # 2. Construire le dataset avec contexte temporel
-    X, y, label_to_idx, idx_to_label = build_dataset(matches, context_frames=0)
+    # 2. Construire le dataset avec une fenêtre temporelle fixe de 10 frames
+    X, y, label_to_idx, idx_to_label = build_dataset(matches, window_size_frames=10)
     
     # 3. Préparer train/test
     X_train, X_test, y_train, y_test, scaler = prepare_train_test_split(X, y)

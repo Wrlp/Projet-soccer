@@ -4,3 +4,5 @@ matplotlib
 SoccerNet
 python-dotenv
 opencv-python
+torch
+torchvision
