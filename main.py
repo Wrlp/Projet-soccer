@@ -34,6 +34,27 @@ def main():
     print("=" * 60)
     print("ENTRAINEMENT TERMINE")
     print("=" * 60 + "\n")
+    
+    # 7. Évaluation des hyperparamètres avec le modèle entraîné
+    print("\n" + "=" * 60)
+    print("LANCEMENT DE L'EVALUATION DES HYPERPARAMÈTRES")
+    print("=" * 60 + "\n")
+    
+    try:
+        from evalution_hyperparams import run_evaluation
+        run_evaluation(
+            model=model,
+            X_test=X_test,
+            y_test=y_test,
+            label_to_idx=label_to_idx,
+            idx_to_label=idx_to_label,
+            verbose=True
+        )
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de l'évaluation des hyperparamètres : {e}")
+        import traceback
+        traceback.print_exc()
+        print("[WARNING] L'entraînement s'est terminé correctement, mais l'évaluation a échoué.")
 
 
 if __name__ == "__main__":
