@@ -6,3 +6,6 @@ python-dotenv
 opencv-python
 torch
 torchvision
+transformers
+accelerate
+pillow
