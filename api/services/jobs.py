@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,29 @@ from api.config import JOBS_DIR
 
 def _path(job_id: str) -> Path:
     return JOBS_DIR / f"{job_id}.json"
+
+
+def _write_json(path: Path, data: dict) -> None:
+    """Écriture atomique pour éviter les lectures partielles (race avec le polling front)."""
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def _read_json(path: Path, retries: int = 5) -> dict | None:
+    if not path.exists():
+        return None
+    for attempt in range(retries):
+        try:
+            text = path.read_text(encoding="utf-8")
+            if not text.strip():
+                raise json.JSONDecodeError("empty file", text, 0)
+            return json.loads(text)
+        except json.JSONDecodeError:
+            if attempt == retries - 1:
+                raise
+            time.sleep(0.05)
+    return None
 
 
 def create_job(video_name: str, params: dict) -> str:
@@ -24,15 +48,12 @@ def create_job(video_name: str, params: dict) -> str:
         "params": params,
         "error": None,
     }
-    _path(job_id).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _write_json(_path(job_id), data)
     return job_id
 
 
 def get_job(job_id: str) -> dict | None:
-    p = _path(job_id)
-    if not p.exists():
-        return None
-    return json.loads(p.read_text(encoding="utf-8"))
+    return _read_json(_path(job_id))
 
 
 def update_job(job_id: str, **kwargs: Any) -> dict:
@@ -40,15 +61,12 @@ def update_job(job_id: str, **kwargs: Any) -> dict:
     if not data:
         raise KeyError(job_id)
     data.update(kwargs)
-    _path(job_id).write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _write_json(_path(job_id), data)
     return data
 
 
 def load_result(job_id: str) -> dict | None:
-    p = JOBS_DIR / f"{job_id}_result.json"
-    if not p.exists():
-        return None
-    return json.loads(p.read_text(encoding="utf-8"))
+    return _read_json(JOBS_DIR / f"{job_id}_result.json")
 
 
 def find_video_path(job_id: str, uploads_dir: Path) -> Path | None:

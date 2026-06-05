@@ -12,6 +12,7 @@ export function TimelineChart({
   durationMinutes = 90,
   isExcerpt = false,
   playheadSeconds = 0,
+  highlightWindowSec,
   onSeek,
 }: {
   predictions: DetectedEvent[];
@@ -19,6 +20,7 @@ export function TimelineChart({
   durationMinutes?: number;
   isExcerpt?: boolean;
   playheadSeconds?: number;
+  highlightWindowSec?: number;
   onSeek?: (seconds: number) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -62,7 +64,7 @@ export function TimelineChart({
         const cx = toX(timelineMinute(ev.timestamp, ev.half, isExcerpt, maxMin));
         const cy = y + 14;
         const emoji = eventEmoji(ev.label);
-        const active = isEventActive(ev.timestamp, playheadSeconds);
+        const active = isEventActive(ev.timestamp, playheadSeconds, highlightWindowSec);
         const color = eventColor(ev.label);
         const seekTo = () => onSeek?.(ev.timestamp);
         return (

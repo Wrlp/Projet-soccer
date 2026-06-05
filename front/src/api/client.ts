@@ -1,4 +1,5 @@
-import type { AnalysisParams, AnalysisResult, UploadResponse } from "../types";
+import { enrichModelFromApi, FALLBACK_MODEL_OPTIONS, type ModelOption } from "../constants/models";
+import type { AnalysisParams, AnalysisResult, ApiModelsResponse, UploadResponse } from "../types";
 import { buildMockAnalysis } from "./mockData";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -18,6 +19,7 @@ export async function uploadAndAnalyze(file: File, params: AnalysisParams): Prom
   form.append("threshold", String(params.threshold));
   form.append("context_frames", String(params.contextFrames));
   if (params.half && params.half !== "auto") form.append("half", String(params.half));
+  if (params.model) form.append("model", params.model);
   const res = await fetch(`${API}/analyze`, { method: "POST", body: form });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -49,6 +51,19 @@ export async function getAnalysisResults(jobId: string): Promise<AnalysisResult>
     throw new Error(detail || `Erreur HTTP ${res.status}`);
   }
   return res.json();
+}
+
+export async function fetchModels(): Promise<{ defaultModel: string; models: ModelOption[] }> {
+  if (USE_MOCK) {
+    return { defaultModel: FALLBACK_MODEL_OPTIONS[0].id, models: FALLBACK_MODEL_OPTIONS };
+  }
+  const res = await fetch(`${API}/models`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = (await res.json()) as ApiModelsResponse;
+  return {
+    defaultModel: data.default,
+    models: data.models.map(enrichModelFromApi),
+  };
 }
 
 export async function pollUntilComplete(jobId: string, onProgress?: (p: number) => void) {

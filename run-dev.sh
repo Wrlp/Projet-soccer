@@ -16,8 +16,11 @@ trap cleanup INT TERM EXIT
 if [ ! -d "api/.venv" ]; then
   echo "→ Création venv API..."
   python3 -m venv api/.venv
-  api/.venv/bin/pip install -q -r api/requirements.txt
 fi
+echo "→ Dépendances API..."
+api/.venv/bin/pip install -q -r api/requirements.txt
+echo "→ Modèles (Git LFS)..."
+bash scripts/materialize-models.sh
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 echo "→ API http://localhost:8000"
 api/.venv/bin/uvicorn api.main:app --reload --host 0.0.0.0 --port 8000 &

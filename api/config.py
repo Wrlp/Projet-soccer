@@ -14,7 +14,11 @@ MODEL_NAME = "event_detection_model"
 FPS = 2.0
 DEFAULT_CONTEXT_FRAMES = 0
 
-# SlowFast (api/services/slowfast_inference.py)
+# Modèles d'inférence
+VIDEOMAE_MODEL_DIR = MODELS_DIR / "videomae_soccernet" / "best_model"
+DEFAULT_MODEL = "videomae"
+
+# SlowFast (api/services/models/slowfast.py)
 SLOWFAST_CKPT = ROOT / "SlowFast" / "checkpoints" / "best.pth"
 SLOWFAST_SPLITS = ROOT / "SlowFast" / "splits.json"
 SLOWFAST_T_S = 8

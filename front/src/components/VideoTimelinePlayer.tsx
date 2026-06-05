@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getJobVideoUrl } from "../api/client";
 import { eventColor, eventEmoji, formatTime } from "../constants/events";
 import type { AnalysisResult, DetectedEvent } from "../types";
-import { getActiveEventIndices, isEventActive } from "../utils/eventHighlight";
+import { getActiveEventIndices, highlightWindowFromResult } from "../utils/eventHighlight";
 import { TimelineChart } from "./charts/TimelineChart";
 
 function clampTime(t: number, duration: number): number {
@@ -34,9 +34,11 @@ export function VideoTimelinePlayer({
     [result.predictions]
   );
 
+  const highlightWindowSec = useMemo(() => highlightWindowFromResult(result), [result]);
+
   const activeIndices = useMemo(
-    () => getActiveEventIndices(sortedEvents, playheadSec),
-    [sortedEvents, playheadSec]
+    () => getActiveEventIndices(sortedEvents, playheadSec, highlightWindowSec),
+    [sortedEvents, playheadSec, highlightWindowSec]
   );
 
   const syncFromVideo = useCallback(() => {
@@ -139,6 +141,7 @@ export function VideoTimelinePlayer({
             durationMinutes={durationMin}
             isExcerpt={isExcerpt}
             playheadSeconds={playheadSec}
+            highlightWindowSec={highlightWindowSec}
             onSeek={seekTo}
           />
         </div>
@@ -148,7 +151,6 @@ export function VideoTimelinePlayer({
         <EventSidebar
           events={sortedEvents}
           isExcerpt={isExcerpt}
-          playheadSec={playheadSec}
           activeIndices={activeIndices}
           onJump={seekTo}
         />
@@ -160,13 +162,11 @@ export function VideoTimelinePlayer({
 function EventSidebar({
   events,
   isExcerpt,
-  playheadSec,
   activeIndices,
   onJump,
 }: {
   events: DetectedEvent[];
   isExcerpt: boolean;
-  playheadSec: number;
   activeIndices: number[];
   onJump: (sec: number) => void;
 }) {
@@ -184,7 +184,7 @@ function EventSidebar({
       <p className="timeline-sidebar-sub">{events.length} détection{events.length > 1 ? "s" : ""}</p>
       <div className="event-sidebar-list">
         {events.map((ev, i) => {
-          const active = isEventActive(ev.timestamp, playheadSec);
+          const active = activeIndices.includes(i);
           const color = eventColor(ev.label);
           return (
             <button

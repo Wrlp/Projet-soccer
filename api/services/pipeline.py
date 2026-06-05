@@ -6,7 +6,7 @@ from pathlib import Path
 
 from api.services import jobs
 from api.services.metrics import build_full_result
-from api.services.slowfast_inference import predict_video
+from api.services.models import default_threshold, get
 from api.services.video_segments import EXCERPT_MAX_SEC as _EXCERPT_SEC
 from api.config import JOBS_DIR
 
@@ -23,7 +23,7 @@ def _segment_meta(duration_sec: float, half: int, model_meta: dict) -> dict:
         "isExcerpt": is_excerpt,
         "analysisMode": "excerpt" if is_excerpt else ("match" if duration_sec >= 85 * 60 else "half"),
         "segmentLabel": "Extrait vidéo" if is_excerpt else "Séquence vidéo",
-        "model": "SlowFast",
+        "model": model_meta.get("model", "VideoMAE"),
         **model_meta,
     }
 
@@ -33,13 +33,15 @@ def run_analysis(job_id: str, video_path: Path) -> None:
     if not job:
         raise KeyError(job_id)
     params = job.get("params", {})
-    threshold = float(params.get("threshold", 0.18))
+    model_key = str(params.get("model", "videomae")).lower()
+    spec = get(model_key)
+    threshold = float(params.get("threshold", default_threshold(model_key)))
     half_param = params.get("half")
     half = 1 if half_param in ("auto", None, "", "1", 1) else int(half_param)
 
     try:
         jobs.update_job(job_id, status="processing", progress=15)
-        predictions, model_meta = predict_video(
+        predictions, model_meta = spec.predict(
             video_path,
             threshold=threshold,
             half=half,
@@ -53,7 +55,7 @@ def run_analysis(job_id: str, video_path: Path) -> None:
         result = build_full_result(job, predictions, seg_meta, 0)
         (JOBS_DIR / f"{job_id}_result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         jobs.update_job(job_id, status="completed", progress=100)
-        logger.info("Job %s OK — %d événements (SlowFast)", job_id, len(predictions))
+        logger.info("Job %s OK — %d événements (%s)", job_id, len(predictions), model_meta.get("model", model_key))
     except Exception as e:
         logger.exception("Job %s", job_id)
         jobs.update_job(job_id, status="failed", error=str(e), progress=0)
