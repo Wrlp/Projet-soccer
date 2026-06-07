@@ -37,6 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight-decay", type=float, default=0.01)
     parser.add_argument("--warmup-ratio", type=float, default=0.1)
     parser.add_argument("--test-size", type=float, default=0.2)
+    parser.add_argument("--max-per-folder", type=int, default=300)
     parser.add_argument("--max-train-samples", type=int, default=0)
     parser.add_argument("--max-val-samples", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
@@ -103,7 +104,7 @@ def train() -> None:
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
     best_model_dir.mkdir(parents=True, exist_ok=True)
 
-    samples, class_names = discover_samples(args.data_root)
+    samples, class_names = discover_samples(args.data_root, max_per_folder=args.max_per_folder)
     train_samples, val_samples = split_samples(samples, test_size=args.test_size, random_state=args.seed)
 
     if args.max_train_samples > 0:

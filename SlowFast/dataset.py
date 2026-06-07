@@ -9,15 +9,20 @@ from torch.utils.data import Dataset
 import torchvision.transforms as T
 
 
-def list_video_files(root_dir):
+def list_video_files(root_dir, max_per_folder=300):
     root = Path(root_dir)
     classes = sorted([p.name for p in root.iterdir() if p.is_dir()])
     items = []
     for idx, cls in enumerate(classes):
         cls_dir = root / cls
-        for p in sorted(cls_dir.iterdir()):
-            if p.suffix.lower() in ('.mp4', '.avi', '.mov', '.mkv'):
-                items.append({'path': str(p), 'label': idx, 'class_name': cls})
+        video_paths = [
+            p for p in sorted(cls_dir.iterdir())
+            if p.suffix.lower() in ('.mp4', '.avi', '.mov', '.mkv')
+        ]
+        if max_per_folder > 0:
+            video_paths = video_paths[:max_per_folder]
+        for p in video_paths:
+            items.append({'path': str(p), 'label': idx, 'class_name': cls})
     return items, classes
 
 

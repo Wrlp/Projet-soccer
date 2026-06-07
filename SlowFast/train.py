@@ -12,7 +12,7 @@ if __package__ is None or __package__ == "":
 
 from SlowFast.dataset import SoccerClipDataset
 from SlowFast.model import SlowFastSimple
-from SlowFast.utils import create_splits, load_splits
+from SlowFast.utils import create_splits
 
 
 def train_epoch(model, loader, criterion, optimizer, device, use_amp=False, log_every=50):
@@ -83,17 +83,19 @@ def main():
     parser.add_argument('--log-every', type=int, default=50)
     parser.add_argument('--use-npy', action='store_true')
     parser.add_argument('--root-mp4', type=str, default='SOCCER/outputs/clips/mp4')
+    parser.add_argument('--max-per-folder', type=int, default=300)
     parser.add_argument('--splits', type=str, default='SlowFast/splits.json')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print('Device:', device)
 
-    # create splits if needed
-    splits = load_splits(args.splits)
-    if splits is None:
-        print('Creating splits...')
-        splits = create_splits(root_mp4=args.root_mp4, out_json=args.splits)
+    print('Creating splits...')
+    splits = create_splits(
+        root_mp4=args.root_mp4,
+        out_json=args.splits,
+        max_per_folder=args.max_per_folder,
+    )
 
     num_classes = len({e['class_name'] for e in splits['train']})
 

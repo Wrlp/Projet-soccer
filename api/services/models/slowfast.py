@@ -15,12 +15,14 @@ import torchvision.transforms as T
 from api.config import SLOWFAST_ALPHA, SLOWFAST_CKPT, SLOWFAST_IMAGE_SIZE, SLOWFAST_SPLITS, SLOWFAST_T_S
 from api.services.models.common import (
     DEFAULT_STRIDE_SEC,
+    INFER_BATCH_SIZE,
     apply_threshold_with_fallback,
     build_inference_meta,
     center_timestamp,
     load_video_frames_rgb,
     make_candidate,
     merge_events,
+    resolve_half_range,
     sliding_windows,
 )
 
@@ -95,43 +97,84 @@ def _to_slow_fast(frames: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     return stack_path(slow_idx), stack_path(fast)
 
 
+def _score_windows_batched(
+    model,
+    device,
+    idx_to_name: dict[int, str],
+    frames: torch.Tensor,
+    windows: list[tuple[int, int]],
+    *,
+    label_half: int,
+    batch_size: int = INFER_BATCH_SIZE,
+) -> list[dict]:
+    candidates: list[dict] = []
+    with torch.no_grad():
+        for batch_start in range(0, len(windows), batch_size):
+            batch = windows[batch_start : batch_start + batch_size]
+            slow_batch: list[torch.Tensor] = []
+            fast_batch: list[torch.Tensor] = []
+            spans: list[tuple[int, int]] = []
+            for start, end in batch:
+                clip = frames[start:end]
+                if clip.shape[0] < 2:
+                    continue
+                slow, fast = _to_slow_fast(clip)
+                slow_batch.append(slow)
+                fast_batch.append(fast)
+                spans.append((start, end))
+            if not slow_batch:
+                continue
+
+            slow = torch.stack(slow_batch, dim=0).to(device)
+            fast = torch.stack(fast_batch, dim=0).to(device)
+            logits = model(slow, fast)
+            probs = torch.softmax(logits, dim=1)
+            for i, (start, end) in enumerate(spans):
+                conf = float(probs[i].max().item())
+                pred_idx = int(probs[i].argmax().item())
+                if conf < MIN_CONFIDENCE:
+                    continue
+                class_key = idx_to_name.get(pred_idx, str(pred_idx))
+                candidates.append(
+                    make_candidate(
+                        half=label_half,
+                        class_key=class_key,
+                        confidence=conf,
+                        timestamp=center_timestamp(start, end, INFER_FPS),
+                    )
+                )
+    return candidates
+
+
 def predict_video(
     video_path: Path,
     *,
     threshold: float = DEFAULT_THRESHOLD,
     stride_sec: float = DEFAULT_STRIDE_SEC,
-    half: int = 1,
+    half: str | int = "auto",
     skip_ball_out: bool = True,
 ) -> tuple[list[dict], dict]:
     model, device, idx_to_name = _get_model()
-    rgb = load_video_frames_rgb(video_path, fps=INFER_FPS, size=SLOWFAST_IMAGE_SIZE)
+    start_sec, duration_sec, label_half = resolve_half_range(video_path, half)
+    rgb = load_video_frames_rgb(
+        video_path,
+        fps=INFER_FPS,
+        size=SLOWFAST_IMAGE_SIZE,
+        start_sec=start_sec,
+        duration_sec=duration_sec,
+    )
     frames = torch.from_numpy(rgb.copy()).permute(0, 3, 1, 2).contiguous()
     stride = max(1, int(stride_sec * INFER_FPS))
     windows = sliding_windows(frames.shape[0], WINDOW_FRAMES, stride)
 
-    candidates: list[dict] = []
-    with torch.no_grad():
-        for start, end in windows:
-            clip = frames[start:end]
-            if clip.shape[0] < 2:
-                continue
-            slow, fast = _to_slow_fast(clip)
-            slow = slow.unsqueeze(0).to(device)
-            fast = fast.unsqueeze(0).to(device)
-            logits = model(slow, fast)
-            prob = torch.softmax(logits, dim=1)[0]
-            conf, pred_idx = float(prob.max().item()), int(prob.argmax().item())
-            if conf < MIN_CONFIDENCE:
-                continue
-            class_key = idx_to_name.get(pred_idx, str(pred_idx))
-            candidates.append(
-                make_candidate(
-                    half=half,
-                    class_key=class_key,
-                    confidence=conf,
-                    timestamp=center_timestamp(start, end, INFER_FPS),
-                )
-            )
+    candidates = _score_windows_batched(
+        model,
+        device,
+        idx_to_name,
+        frames,
+        windows,
+        label_half=label_half,
+    )
 
     events, used_fallback = apply_threshold_with_fallback(
         candidates,
@@ -152,5 +195,7 @@ def predict_video(
         candidates=candidates,
         used_fallback=used_fallback,
         merged_count=len(merged),
+        analysis_start_sec=start_sec,
+        label_half=label_half,
     )
     return merged, meta

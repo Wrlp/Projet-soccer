@@ -11,12 +11,14 @@ import torch
 from api.config import VIDEOMAE_MODEL_DIR
 from api.services.models.common import (
     DEFAULT_STRIDE_SEC,
+    INFER_BATCH_SIZE,
     apply_threshold_with_fallback,
     build_inference_meta,
     center_timestamp,
     load_video_frames_rgb,
     make_candidate,
     merge_events,
+    resolve_half_range,
     sliding_windows,
     temporal_sample_rgb,
 )
@@ -73,43 +75,83 @@ def _get_model():
     return model, processor, device, id2label
 
 
+def _score_windows_batched(
+    model,
+    processor,
+    device,
+    id2label: dict[int, str],
+    frames,
+    windows: list[tuple[int, int]],
+    *,
+    label_half: int,
+    batch_size: int = INFER_BATCH_SIZE,
+) -> list[dict]:
+    candidates: list[dict] = []
+    with torch.no_grad():
+        for batch_start in range(0, len(windows), batch_size):
+            batch = windows[batch_start : batch_start + batch_size]
+            clips: list[list] = []
+            spans: list[tuple[int, int]] = []
+            for start, end in batch:
+                clip = frames[start:end]
+                if clip.shape[0] < 2:
+                    continue
+                sampled = temporal_sample_rgb(clip, NUM_FRAMES)
+                clips.append([sampled[i] for i in range(sampled.shape[0])])
+                spans.append((start, end))
+            if not clips:
+                continue
+
+            inputs = processor(clips, return_tensors="pt")
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            logits = model(**inputs).logits
+            probs = torch.softmax(logits, dim=1)
+            for i, (start, end) in enumerate(spans):
+                conf = float(probs[i].max().item())
+                pred_idx = int(probs[i].argmax().item())
+                if conf < MIN_CONFIDENCE:
+                    continue
+                class_key = id2label.get(pred_idx, str(pred_idx))
+                candidates.append(
+                    make_candidate(
+                        half=label_half,
+                        class_key=class_key,
+                        confidence=conf,
+                        timestamp=center_timestamp(start, end, INFER_FPS),
+                    )
+                )
+    return candidates
+
+
 def predict_video(
     video_path: Path,
     *,
     threshold: float = DEFAULT_THRESHOLD,
     stride_sec: float = DEFAULT_STRIDE_SEC,
-    half: int = 1,
+    half: str | int = "auto",
     skip_ball_out: bool = True,
 ) -> tuple[list[dict], dict]:
     model, processor, device, id2label = _get_model()
-    frames = load_video_frames_rgb(video_path, fps=INFER_FPS, size=IMAGE_SIZE)
+    start_sec, duration_sec, label_half = resolve_half_range(video_path, half)
+    frames = load_video_frames_rgb(
+        video_path,
+        fps=INFER_FPS,
+        size=IMAGE_SIZE,
+        start_sec=start_sec,
+        duration_sec=duration_sec,
+    )
     stride = max(1, int(stride_sec * INFER_FPS))
     windows = sliding_windows(frames.shape[0], NUM_FRAMES, stride)
 
-    candidates: list[dict] = []
-    with torch.no_grad():
-        for start, end in windows:
-            clip = frames[start:end]
-            if clip.shape[0] < 2:
-                continue
-            sampled = temporal_sample_rgb(clip, NUM_FRAMES)
-            frame_list = [sampled[i] for i in range(sampled.shape[0])]
-            inputs = processor(frame_list, return_tensors="pt")
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-            logits = model(**inputs).logits
-            prob = torch.softmax(logits, dim=1)[0]
-            conf, pred_idx = float(prob.max().item()), int(prob.argmax().item())
-            if conf < MIN_CONFIDENCE:
-                continue
-            class_key = id2label.get(pred_idx, str(pred_idx))
-            candidates.append(
-                make_candidate(
-                    half=half,
-                    class_key=class_key,
-                    confidence=conf,
-                    timestamp=center_timestamp(start, end, INFER_FPS),
-                )
-            )
+    candidates = _score_windows_batched(
+        model,
+        processor,
+        device,
+        id2label,
+        frames,
+        windows,
+        label_half=label_half,
+    )
 
     events, used_fallback = apply_threshold_with_fallback(
         candidates,
@@ -130,5 +172,7 @@ def predict_video(
         candidates=candidates,
         used_fallback=used_fallback,
         merged_count=len(merged),
+        analysis_start_sec=start_sec,
+        label_half=label_half,
     )
     return merged, meta

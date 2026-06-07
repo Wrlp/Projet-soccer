@@ -17,9 +17,10 @@ export interface UploadResponse {
 
 export interface AnalysisParams {
   threshold: number;
-  contextFrames: number;
+  contextFrames?: number;
   half?: 1 | 2 | "auto";
   model?: string;
+  strideSec?: number;
 }
 
 export interface GlobalMetrics {
@@ -58,6 +59,8 @@ export interface AnalysisResult {
     maxConfidence?: number;
     usedFallback?: boolean;
     thresholdRequested?: number;
+    strideSeconds?: number;
+    analysisStartSec?: number;
     model?: string;
     windowSeconds?: number;
   };

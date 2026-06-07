@@ -26,8 +26,14 @@ export function VideoTimelinePlayer({
   const [playing, setPlaying] = useState(false);
 
   const isExcerpt = result.meta?.isExcerpt ?? true;
+  const analysisStartSec = result.meta?.analysisStartSec ?? 0;
   const metaDurationMin = result.meta?.durationMinutes ?? durationSec / 60;
   const durationMin = durationSec > 0 ? durationSec / 60 : metaDurationMin;
+
+  const eventVideoTime = useCallback(
+    (timestamp: number) => timestamp + analysisStartSec,
+    [analysisStartSec]
+  );
 
   const sortedEvents = useMemo(
     () => [...result.predictions].sort((a, b) => a.timestamp - b.timestamp),
@@ -37,8 +43,14 @@ export function VideoTimelinePlayer({
   const highlightWindowSec = useMemo(() => highlightWindowFromResult(result), [result]);
 
   const activeIndices = useMemo(
-    () => getActiveEventIndices(sortedEvents, playheadSec, highlightWindowSec),
-    [sortedEvents, playheadSec, highlightWindowSec]
+    () =>
+      getActiveEventIndices(
+        sortedEvents,
+        playheadSec,
+        highlightWindowSec,
+        analysisStartSec
+      ),
+    [sortedEvents, playheadSec, highlightWindowSec, analysisStartSec]
   );
 
   const syncFromVideo = useCallback(() => {
@@ -59,6 +71,13 @@ export function VideoTimelinePlayer({
       setPlayheadSec(t);
     },
     [durationSec]
+  );
+
+  const seekToEvent = useCallback(
+    (timestamp: number) => {
+      seekTo(eventVideoTime(timestamp));
+    },
+    [eventVideoTime, seekTo]
   );
 
   useEffect(() => {
@@ -140,9 +159,11 @@ export function VideoTimelinePlayer({
             groundTruth={result.groundTruth}
             durationMinutes={durationMin}
             isExcerpt={isExcerpt}
+            analysisStartSec={analysisStartSec}
             playheadSeconds={playheadSec}
             highlightWindowSec={highlightWindowSec}
             onSeek={seekTo}
+            onSeekEvent={seekToEvent}
           />
         </div>
       </div>
@@ -152,7 +173,7 @@ export function VideoTimelinePlayer({
           events={sortedEvents}
           isExcerpt={isExcerpt}
           activeIndices={activeIndices}
-          onJump={seekTo}
+          onJump={seekToEvent}
         />
       )}
     </div>

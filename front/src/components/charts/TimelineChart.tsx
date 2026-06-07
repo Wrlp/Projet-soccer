@@ -11,17 +11,21 @@ export function TimelineChart({
   groundTruth,
   durationMinutes = 90,
   isExcerpt = false,
+  analysisStartSec = 0,
   playheadSeconds = 0,
   highlightWindowSec,
   onSeek,
+  onSeekEvent,
 }: {
   predictions: DetectedEvent[];
   groundTruth?: GroundTruthEvent[];
   durationMinutes?: number;
   isExcerpt?: boolean;
+  analysisStartSec?: number;
   playheadSeconds?: number;
   highlightWindowSec?: number;
   onSeek?: (seconds: number) => void;
+  onSeekEvent?: (seconds: number) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const maxMin = Math.max(durationMinutes, 0.5);
@@ -32,8 +36,12 @@ export function TimelineChart({
   const chartW = w - pad.left - pad.right;
   const toX = (m: number) => pad.left + (m / maxMin) * chartW;
   const ticks = timelineTicks(maxMin);
-  const showHalftime = !isExcerpt && maxMin > 50;
-  const playheadMin = Math.min(Math.max(0, playheadSeconds / 60), maxMin);
+  const segmentMode = isExcerpt || analysisStartSec > 0;
+  const showHalftime = !segmentMode && maxMin > 50;
+  const playheadMin = Math.min(
+    Math.max(0, (playheadSeconds - analysisStartSec) / 60),
+    maxMin
+  );
   const playheadX = toX(playheadMin);
 
   const seekFromClientX = useCallback(
@@ -44,9 +52,9 @@ export function TimelineChart({
       const xSvg = (clientX - rect.left) * scale;
       const minute = ((xSvg - pad.left) / chartW) * maxMin;
       const clamped = Math.max(0, Math.min(maxMin, minute));
-      onSeek(clamped * 60);
+      onSeek(clamped * 60 + analysisStartSec);
     },
-    [onSeek, chartW, maxMin, pad.left]
+    [onSeek, chartW, maxMin, pad.left, analysisStartSec]
   );
 
   const handlePointer = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -61,19 +69,23 @@ export function TimelineChart({
       </text>
       <line x1={pad.left} y1={y + 10} x2={pad.left + chartW} y2={y + 10} stroke="var(--border)" />
       {events.map((ev, i) => {
-        const cx = toX(timelineMinute(ev.timestamp, ev.half, isExcerpt, maxMin));
+        const cx = toX(
+          segmentMode
+            ? ev.timestamp / 60
+            : timelineMinute(ev.timestamp, ev.half, isExcerpt, maxMin)
+        );
         const cy = y + 14;
         const emoji = eventEmoji(ev.label);
-        const active = isEventActive(ev.timestamp, playheadSeconds, highlightWindowSec);
+        const active = isEventActive(ev.timestamp, playheadSeconds, highlightWindowSec, analysisStartSec);
         const color = eventColor(ev.label);
-        const seekTo = () => onSeek?.(ev.timestamp);
+        const jump = () => (onSeekEvent ?? onSeek)?.(ev.timestamp);
         return (
           <g
             key={i}
-            style={{ cursor: onSeek ? "pointer" : undefined }}
+            style={{ cursor: onSeek || onSeekEvent ? "pointer" : undefined }}
             onClick={(e) => {
               e.stopPropagation();
-              seekTo();
+              jump();
             }}
           >
             <title>{`${ev.label} — ${ev.timestamp}s`}</title>
@@ -115,7 +127,7 @@ export function TimelineChart({
       )}
       {ticks.map((m) => (
         <text key={m} x={toX(m)} y={h - 8} textAnchor="middle" fill="var(--text-muted)" fontSize="10">
-          {isExcerpt ? (m < 1 ? `${Math.round(m * 60)}s` : `${m.toFixed(0)} min`) : `${m}'`}
+          {isExcerpt || segmentMode ? (m < 1 ? `${Math.round(m * 60)}s` : `${m.toFixed(0)} min`) : `${m}'`}
         </text>
       ))}
       {row(predictions, pad.top + 24, "Prédictions")}

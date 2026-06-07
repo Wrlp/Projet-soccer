@@ -17,7 +17,8 @@ export async function uploadAndAnalyze(file: File, params: AnalysisParams): Prom
   const form = new FormData();
   form.append("video", file);
   form.append("threshold", String(params.threshold));
-  form.append("context_frames", String(params.contextFrames));
+  form.append("context_frames", String(params.contextFrames ?? 0));
+  form.append("stride_sec", String(params.strideSec ?? 1));
   if (params.half && params.half !== "auto") form.append("half", String(params.half));
   if (params.model) form.append("model", params.model);
   const res = await fetch(`${API}/analyze`, { method: "POST", body: form });

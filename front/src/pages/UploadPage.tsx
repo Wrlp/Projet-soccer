@@ -20,7 +20,7 @@ export function UploadPage() {
   const [modelOptions, setModelOptions] = useState<ModelOption[]>(FALLBACK_MODEL_OPTIONS);
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [threshold, setThreshold] = useState(getModelOption(DEFAULT_MODEL).defaultThreshold);
-  const [contextFrames, setContextFrames] = useState(0);
+  const [strideSec, setStrideSec] = useState(1);
   const [half, setHalf] = useState<"auto" | "1" | "2">("auto");
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export function UploadPage() {
     try {
       const { jobId } = await uploadAndAnalyze(file, {
         threshold,
-        contextFrames,
+        strideSec,
         half: half === "auto" ? "auto" : (Number(half) as 1 | 2),
         model,
       });
@@ -125,11 +125,11 @@ export function UploadPage() {
           </div>
           <div className="form-group">
             <label>
-              Contexte frames — <span className="range-value">{contextFrames}</span>
+              Pas d&apos;analyse — <span className="range-value">{strideSec.toFixed(1)} s</span>
             </label>
-            <input type="range" min={0} max={10} step={1} value={contextFrames} onChange={(e) => setContextFrames(+e.target.value)} />
-            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-              Paramètre conservé pour compatibilité (non utilisé par {modelInfo.name}).
+            <input type="range" min={1} max={5} step={0.5} value={strideSec} onChange={(e) => setStrideSec(+e.target.value)} />
+            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.35rem" }}>
+              Intervalle entre fenêtres (1 s = précis, 2–3 s = plus rapide).
             </p>
           </div>
           <div className="form-group">
@@ -137,8 +137,11 @@ export function UploadPage() {
             <select value={half} onChange={(e) => setHalf(e.target.value as "auto" | "1" | "2")}>
               <option value="auto">Auto — extrait ou match détecté</option>
               <option value="1">Extrait / 1ère mi-temps</option>
-              <option value="2">2ème mi-temps</option>
+              <option value="2">2ème mi-temps (match long uniquement)</option>
             </select>
+            <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.35rem" }}>
+              Sur un match complet (&gt;42 min), seule la mi-temps choisie est analysée.
+            </p>
           </div>
         </div>
       </div>

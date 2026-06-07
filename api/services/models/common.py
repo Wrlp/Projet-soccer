@@ -17,8 +17,11 @@ DISPLAY_NAMES: dict[str, str] = {
 }
 
 DEFAULT_STRIDE_SEC = 1.0
+INFER_BATCH_SIZE = 8
 TOP_K_FALLBACK = 8
 BALL_OUT_CLASS = "Ball_out_of_play"
+# ~42 min : en dessous = extrait (pas une mi-temps complète)
+EXCERPT_MAX_SEC = 42 * 60
 
 
 def display_label(class_name: str) -> str:
@@ -76,6 +79,58 @@ def apply_threshold_with_fallback(
     return events, bool(events)
 
 
+def video_duration_sec(video_path: Path) -> float:
+    try:
+        out = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(video_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return max(float(out.stdout.strip()), 0.0)
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        return 0.0
+
+
+def resolve_half_range(
+    video_path: Path,
+    half: str | int | None,
+    *,
+    excerpt_max_sec: float = EXCERPT_MAX_SEC,
+) -> tuple[float, float | None, int]:
+    """
+    Détermine la portion de vidéo à analyser.
+
+    Retourne (start_sec, duration_sec ou None, half pour libellés).
+    Pour un extrait court ou half=auto, analyse la vidéo entière.
+    Pour un match long + half=1|2, n'analyse que la mi-temps choisie.
+    """
+    dur = video_duration_sec(video_path)
+    if dur <= 0:
+        return 0.0, None, 1
+
+    if half in (None, "", "auto"):
+        return 0.0, None, 1
+
+    label_half = 2 if str(half) == "2" else 1
+    if dur < excerpt_max_sec:
+        return 0.0, None, label_half
+
+    half_dur = dur / 2.0
+    if label_half == 1:
+        return 0.0, half_dur, 1
+    return half_dur, half_dur, 2
+
+
 def sliding_windows(n_frames: int, window_size: int, stride: int) -> list[tuple[int, int]]:
     if n_frames < window_size:
         return [(0, n_frames)]
@@ -85,22 +140,32 @@ def sliding_windows(n_frames: int, window_size: int, stride: int) -> list[tuple[
     return windows or [(0, min(window_size, n_frames))]
 
 
-def load_video_frames_rgb(video_path: Path, *, fps: int, size: int) -> np.ndarray:
-    """Frames uint8 (T, H, W, C) @ fps donné."""
-    cmd = [
-        "ffmpeg",
-        "-v",
-        "error",
-        "-i",
-        str(video_path),
-        "-vf",
-        f"fps={fps},scale={size}:{size}",
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgb24",
-        "pipe:1",
-    ]
+def load_video_frames_rgb(
+    video_path: Path,
+    *,
+    fps: int,
+    size: int,
+    start_sec: float = 0.0,
+    duration_sec: float | None = None,
+) -> np.ndarray:
+    """Frames uint8 (T, H, W, C) @ fps donné, optionnellement sur un segment."""
+    cmd = ["ffmpeg", "-v", "error"]
+    if start_sec > 0:
+        cmd.extend(["-ss", str(start_sec)])
+    cmd.extend(["-i", str(video_path)])
+    if duration_sec is not None and duration_sec > 0:
+        cmd.extend(["-t", str(duration_sec)])
+    cmd.extend(
+        [
+            "-vf",
+            f"fps={fps},scale={size}:{size}",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "pipe:1",
+        ]
+    )
     proc = subprocess.run(cmd, capture_output=True)
     if proc.returncode != 0:
         raise ValueError(f"ffmpeg : {proc.stderr.decode(errors='replace')[:500]}")
@@ -157,6 +222,8 @@ def build_inference_meta(
     candidates: list[dict],
     used_fallback: bool,
     merged_count: int,
+    analysis_start_sec: float = 0.0,
+    label_half: int = 1,
 ) -> dict:
     duration_sec = n_frames / infer_fps
     max_conf = round(max((c["confidence"] for c in candidates), default=0), 4)
@@ -173,6 +240,8 @@ def build_inference_meta(
         "thresholdRequested": threshold,
         "usedFallback": used_fallback,
         "maxConfidence": max_conf,
+        "analysisStartSec": round(analysis_start_sec, 1),
+        "labelHalf": label_half,
     }
     if used_fallback:
         meta["detectionHint"] = (

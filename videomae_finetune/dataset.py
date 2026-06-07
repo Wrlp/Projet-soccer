@@ -20,7 +20,10 @@ class VideoSample:
     class_name: str
 
 
-def discover_samples(root_dir: str | Path) -> tuple[list[VideoSample], list[str]]:
+def discover_samples(
+    root_dir: str | Path,
+    max_per_folder: int = 300,
+) -> tuple[list[VideoSample], list[str]]:
     root_path = Path(root_dir)
     if not root_path.exists():
         raise FileNotFoundError(f"Dataset root not found: {root_path}")
@@ -30,9 +33,14 @@ def discover_samples(root_dir: str | Path) -> tuple[list[VideoSample], list[str]
 
     for class_index, class_name in enumerate(class_names):
         class_dir = root_path / class_name
-        for video_path in sorted(class_dir.iterdir()):
-            if video_path.suffix.lower() not in VIDEO_EXTENSIONS:
-                continue
+        video_paths = [
+            video_path
+            for video_path in sorted(class_dir.iterdir())
+            if video_path.suffix.lower() in VIDEO_EXTENSIONS
+        ]
+        if max_per_folder > 0:
+            video_paths = video_paths[:max_per_folder]
+        for video_path in video_paths:
             samples.append(VideoSample(str(video_path), class_index, class_name))
 
     if not samples:

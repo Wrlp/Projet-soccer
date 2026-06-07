@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 
 from api.config import UPLOADS_DIR
 from api.services import jobs
+from api.services.models.common import DEFAULT_STRIDE_SEC
 from api.services.models import default_model_id, get, list_models
 from api.services.pipeline import run_analysis
 from api.services.video_playback import ensure_playback_mp4
@@ -52,6 +53,7 @@ async def analyze(
     video: UploadFile = File(...),
     threshold: float = Form(0.35),
     context_frames: int = Form(0),
+    stride_sec: float = Form(DEFAULT_STRIDE_SEC),
     half: str = Form("auto"),
     model: str = Form(default_model_id()),
 ):
@@ -70,9 +72,17 @@ async def analyze(
             else f"Modèle {spec.name} indisponible : {spec.path}"
         )
         raise HTTPException(503, detail)
+    if stride_sec < 0.5 or stride_sec > 10:
+        raise HTTPException(400, "stride_sec doit être entre 0.5 et 10 secondes")
     job_id = jobs.create_job(
         video.filename or "video",
-        {"threshold": threshold, "context_frames": context_frames, "half": half, "model": model_key},
+        {
+            "threshold": threshold,
+            "context_frames": context_frames,
+            "stride_sec": stride_sec,
+            "half": half,
+            "model": model_key,
+        },
     )
     dest = UPLOADS_DIR / f"{job_id}{ext}"
     with open(dest, "wb") as f:

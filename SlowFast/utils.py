@@ -4,19 +4,14 @@ from sklearn.model_selection import train_test_split
 
 
 def create_splits(root_mp4='SOCCER/outputs/clips/mp4', out_json='SlowFast/splits.json',
-                  test_size=0.2, val_size=0.1, random_state=42):
+                  test_size=0.2, val_size=0.1, random_state=42, max_per_folder=300):
     """Create train/val/test splits and save as JSON list entries.
 
     Each entry is a dict: {'path': str(path), 'label': int, 'class_name': cls}
     """
-    from pathlib import Path
-    root = Path(root_mp4)
-    classes = sorted([p.name for p in root.iterdir() if p.is_dir()])
-    items = []
-    for idx, cls in enumerate(classes):
-        for p in sorted((root / cls).iterdir()):
-            if p.suffix.lower() in ('.mp4', '.avi', '.mov', '.mkv'):
-                items.append({'path': str(p), 'label': idx, 'class_name': cls})
+    from SlowFast.dataset import list_video_files
+
+    items, _ = list_video_files(root_mp4, max_per_folder=max_per_folder)
 
     paths = [it['path'] for it in items]
     labels = [it['label'] for it in items]
