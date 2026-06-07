@@ -1,1 +1,4 @@
 SlowFast/checkpoints/best.pth filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet/best_model/*.safetensors filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet/best_model/*.bin filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet/best_model/*.pth filter=lfs diff=lfs merge=lfs -text

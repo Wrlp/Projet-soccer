@@ -169,7 +169,7 @@ def train() -> None:
     )
 
     use_amp = torch.cuda.is_available()
-    scaler = torch.cuda.amp.GradScaler(enabled=True) if use_amp else None
+    scaler = torch.amp.GradScaler("cuda", enabled=True) if use_amp else None
     best_macro_f1 = -1.0
     best_metrics: dict[str, float] | None = None
     metrics_history: list[dict[str, float]] = []
@@ -191,20 +191,25 @@ def train() -> None:
             labels = labels.to(device)
 
             optimizer.zero_grad(set_to_none=True)
-            autocast_context = torch.cuda.amp.autocast() if use_amp else nullcontext()
+            autocast_context = torch.amp.autocast("cuda") if use_amp else nullcontext()
             with autocast_context:
                 outputs = model(pixel_values=pixel_values)
                 logits = outputs.logits
                 loss = torch.nn.functional.cross_entropy(logits, labels, weight=class_weights)
 
+            optimizer_stepped = True
             if use_amp:
+                previous_scale = scaler.get_scale()
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
+                optimizer_stepped = scaler.get_scale() >= previous_scale
             else:
                 loss.backward()
                 optimizer.step()
-            scheduler.step()
+
+            if optimizer_stepped:
+                scheduler.step()
 
             running_loss += loss.item() * labels.size(0)
             running_examples += labels.size(0)
