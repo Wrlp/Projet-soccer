@@ -2,3 +2,15 @@ SlowFast/checkpoints/best.pth filter=lfs diff=lfs merge=lfs -text
 outputs/models/videomae_soccernet/best_model/*.safetensors filter=lfs diff=lfs merge=lfs -text
 outputs/models/videomae_soccernet/best_model/*.bin filter=lfs diff=lfs merge=lfs -text
 outputs/models/videomae_soccernet/best_model/*.pth filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet_celui_qui_a_crash/best_model/preprocessor_config.json filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet/best_model/preprocessor_config.json filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet_OLD/best_model/labels.json filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet_OLD/best_model/model.safetensors filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet_celui_qui_a_crash/best_model/labels.json filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet_OLD/best_model/preprocessor_config.json filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet_celui_qui_a_crash/best_model/config.json filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet_celui_qui_a_crash/best_model/model.safetensors filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet/best_model/config.json filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet/best_model/labels.json filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet/best_model/model.safetensors filter=lfs diff=lfs merge=lfs -text
+outputs/models/videomae_soccernet_OLD/best_model/config.json filter=lfs diff=lfs merge=lfs -text
