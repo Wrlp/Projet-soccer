@@ -20,18 +20,19 @@ SECONDS_AFTER = 2
 
 # Max clips par classe basé sur les vraies occurrences du dataset
 MAX_CLIPS_PER_CLASS = {
-    "Yellow->red card":    46,
-    "Red card":            55,
-    "Penalty":            173,
-    "Goal":               500,
-    "Yellow card":        500,
-    "Offside":            500,
-    "Direct free-kick":   500,
-    "Corner":             500,
-    "Shots off target":   500,
-    "Shots on target":    500,
-    "Indirect free-kick": 500,
-    "Foul":               500,
+    # "Yellow->red card":    46,
+    # "Red card":            55,
+    # "Penalty":            173,
+    # "Goal":               500,
+    # "Yellow card":        500,
+    # "Offside":            500,
+    # "Direct free-kick":   500,
+    # "Corner":             500,
+    # "Shots off target":   500,
+    # "Shots on target":    500,
+    # "Indirect free-kick": 500,
+    # "Foul":               500,
+    "Ball out of play":  300,
 }
 
 CLASSES = list(MAX_CLIPS_PER_CLASS.keys())
