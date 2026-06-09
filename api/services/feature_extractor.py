@@ -37,14 +37,27 @@ def _read_opencv(video_path: Path, fps: float) -> list[np.ndarray]:
     return frames
 
 
-def _read_ffmpeg(video_path: Path, fps: float) -> list[np.ndarray]:
+def _read_ffmpeg(
+    video_path: Path,
+    fps: float,
+    *,
+    start_sec: float = 0.0,
+    duration_sec: float | None = None,
+) -> list[np.ndarray]:
     if not shutil.which("ffmpeg"):
         return []
     frames = []
     with tempfile.TemporaryDirectory(prefix="si_") as tmp:
         pattern = str(Path(tmp) / "f_%06d.jpg")
+        cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+        if start_sec > 0:
+            cmd.extend(["-ss", str(start_sec)])
+        cmd.extend(["-i", str(video_path)])
+        if duration_sec is not None and duration_sec > 0:
+            cmd.extend(["-t", str(duration_sec)])
+        cmd.extend(["-vf", f"fps={fps}", pattern])
         r = subprocess.run(
-            ["ffmpeg", "-y", "-loglevel", "error", "-i", str(video_path), "-vf", f"fps={fps}", pattern],
+            cmd,
             capture_output=True,
             text=True,
         )
@@ -58,9 +71,18 @@ def _read_ffmpeg(video_path: Path, fps: float) -> list[np.ndarray]:
     return frames
 
 
-def read_video_frames(video_path: Path, fps: float = FPS) -> list[np.ndarray]:
+def read_video_frames(
+    video_path: Path,
+    fps: float = FPS,
+    *,
+    start_sec: float = 0.0,
+    duration_sec: float | None = None,
+) -> list[np.ndarray]:
     video_path = Path(video_path)
-    frames = _read_opencv(video_path, fps) or _read_ffmpeg(video_path, fps)
+    if start_sec > 0 or duration_sec is not None:
+        frames = _read_ffmpeg(video_path, fps, start_sec=start_sec, duration_sec=duration_sec)
+    else:
+        frames = _read_opencv(video_path, fps) or _read_ffmpeg(video_path, fps)
     if not frames:
         raise ValueError(f"Impossible de lire {video_path.name} (essayez MP4 H.264)")
     return frames
@@ -107,8 +129,19 @@ def _to_pca512(raw: np.ndarray) -> np.ndarray:
     return pca.transform(raw).astype(np.float32)
 
 
-def extract_pca512_from_video(video_path: Path, fps: float = FPS) -> np.ndarray:
-    frames = read_video_frames(video_path, fps)
+def extract_pca512_from_video(
+    video_path: Path,
+    fps: float = FPS,
+    *,
+    start_sec: float = 0.0,
+    duration_sec: float | None = None,
+) -> np.ndarray:
+    frames = read_video_frames(
+        video_path,
+        fps,
+        start_sec=start_sec,
+        duration_sec=duration_sec,
+    )
     return _to_pca512(_resnet2048(frames))
 
 

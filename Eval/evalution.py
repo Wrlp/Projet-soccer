@@ -1,9 +1,15 @@
+import json
+import os
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import json
-import os
-from pathlib import Path
 
 from sklearn.metrics import (
     precision_score, recall_score, f1_score,
@@ -15,11 +21,11 @@ import torch
 from torch.utils.data import DataLoader
 
 # Chemins principaux
-DATA_ROOT      = Path(r"E:\SOCCER")
-MODEL_DIR      = Path("videomae_finetune/checkpoints/best_model")
-OUTPUT_DIR     = Path("videomae_finetune/outputs")
+DATA_ROOT      = Path(r"/mnt/e/SOCCER")
+MODEL_DIR      = Path("outputs/models/videomae_soccernet_112/best_model")
+OUTPUT_DIR     = Path("outputs/figures/videomae_soccernet_112")
 LABELS_FILE    = MODEL_DIR / "labels.json"
-METRICS_FILE   = Path("videomae_finetune/outputs/metrics.json")
+METRICS_FILE   = Path("outputs/figures/videomae_soccernet_112/metrics.json")
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -69,7 +75,7 @@ def load_validation_clips(class_names, label_to_id, num_frames=16, image_size=22
     from videomae_finetune.dataset import SoccerVideoDataset, discover_samples, split_samples
     from torch.utils.data import DataLoader
 
-    clips_root = DATA_ROOT / "outputs" / "clips" / "mp4"
+    clips_root = DATA_ROOT / "clips" / "mp4"
     if not clips_root.exists():
         raise FileNotFoundError(
             f"Dossier de clips introuvable : {clips_root}\n"

@@ -1,0 +1,30 @@
+{
+  "label_to_id": {
+    "Corner": 0,
+    "Direct_free-kick": 1,
+    "Foul": 2,
+    "Goal": 3,
+    "Indirect_free-kick": 4,
+    "Offside": 5,
+    "Penalty": 6,
+    "Red_card": 7,
+    "Shots_off_target": 8,
+    "Shots_on_target": 9,
+    "Yellow_card": 10,
+    "Yellow_red_card": 11
+  },
+  "id_to_label": {
+    "0": "Corner",
+    "1": "Direct_free-kick",
+    "2": "Foul",
+    "3": "Goal",
+    "4": "Indirect_free-kick",
+    "5": "Offside",
+    "6": "Penalty",
+    "7": "Red_card",
+    "8": "Shots_off_target",
+    "9": "Shots_on_target",
+    "10": "Yellow_card",
+    "11": "Yellow_red_card"
+  }
+}

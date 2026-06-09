@@ -64,7 +64,7 @@ def list_models() -> list[ModelSpec]:
 def default_model_id() -> str:
     if DEFAULT_MODEL in _REGISTRY:
         return DEFAULT_MODEL
-    return next(iter(_REGISTRY)).id if _REGISTRY else DEFAULT_MODEL
+    return next(iter(_REGISTRY.values())).id if _REGISTRY else DEFAULT_MODEL
 
 
 def default_threshold(model_id: str) -> float:

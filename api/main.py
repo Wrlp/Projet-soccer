@@ -66,12 +66,11 @@ async def analyze(
     except KeyError:
         raise HTTPException(400, f"Modèle inconnu : {model}") from None
     if not spec.is_ready():
-        detail = (
-            f"Modèle {spec.name} indisponible — poids manquants ou non téléchargés (git lfs pull)."
-            if model_key == "videomae"
-            else f"Modèle {spec.name} indisponible : {spec.path}"
+        raise HTTPException(
+            503,
+            f"Modèle {spec.name} indisponible — poids manquants ou non téléchargés (git lfs pull). "
+            f"Chemin : {spec.path}",
         )
-        raise HTTPException(503, detail)
     if stride_sec < 0.5 or stride_sec > 10:
         raise HTTPException(400, "stride_sec doit être entre 0.5 et 10 secondes")
     job_id = jobs.create_job(

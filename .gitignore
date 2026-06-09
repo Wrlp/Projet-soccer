@@ -1,7 +1,11 @@
 .venv/
 data/
-outputs/
+outputs/*
+!outputs/models/
+!outputs/models/**
+!outputs/figures/
+!outputs/figures/**
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
-.env
+.env/

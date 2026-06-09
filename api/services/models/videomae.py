@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 
 import torch
 
-from api.config import VIDEOMAE_MODEL_DIR
 from api.services.models.common import (
     DEFAULT_STRIDE_SEC,
     INFER_BATCH_SIZE,
@@ -22,6 +22,7 @@ from api.services.models.common import (
     sliding_windows,
     temporal_sample_rgb,
 )
+from api.services.models.registry import ModelSpec
 
 logger = logging.getLogger(__name__)
 
@@ -34,20 +35,12 @@ MIN_CONFIDENCE = 0.12
 MERGE_GAP_SEC = 2.0
 
 
-def is_model_ready() -> bool:
-    try:
-        _check_weights()
-        return VIDEOMAE_MODEL_DIR.exists()
-    except FileNotFoundError:
-        return False
-
-
-def _check_weights() -> None:
-    weights = VIDEOMAE_MODEL_DIR / "model.safetensors"
+def _check_weights(model_dir: Path) -> None:
+    weights = model_dir / "model.safetensors"
     if not weights.exists():
         raise FileNotFoundError(
             f"Poids VideoMAE introuvables : {weights}\n"
-            "Placez les fichiers dans outputs/models/videomae_soccernet/best_model/"
+            f"Placez les fichiers dans {model_dir.parent}/best_model/"
         )
     if weights.stat().st_size < 1024:
         head = weights.read_bytes()[:64]
@@ -58,20 +51,21 @@ def _check_weights() -> None:
             )
 
 
-@lru_cache(maxsize=1)
-def _get_model():
-    if not VIDEOMAE_MODEL_DIR.exists():
-        raise FileNotFoundError(f"Modèle VideoMAE introuvable : {VIDEOMAE_MODEL_DIR}")
-    _check_weights()
+@lru_cache(maxsize=16)
+def _get_model(model_dir_str: str):
+    model_dir = Path(model_dir_str)
+    if not model_dir.exists():
+        raise FileNotFoundError(f"Modèle VideoMAE introuvable : {model_dir}")
+    _check_weights(model_dir)
     from transformers import VideoMAEForVideoClassification, VideoMAEImageProcessor
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    processor = VideoMAEImageProcessor.from_pretrained(str(VIDEOMAE_MODEL_DIR))
-    model = VideoMAEForVideoClassification.from_pretrained(str(VIDEOMAE_MODEL_DIR))
+    processor = VideoMAEImageProcessor.from_pretrained(str(model_dir))
+    model = VideoMAEForVideoClassification.from_pretrained(str(model_dir))
     model.to(device)
     model.eval()
     id2label = {int(k): v for k, v in model.config.id2label.items()}
-    logger.info("VideoMAE chargé (%s, %d classes, %s)", VIDEOMAE_MODEL_DIR.name, len(id2label), device)
+    logger.info("VideoMAE chargé (%s, %d classes, %s)", model_dir.name, len(id2label), device)
     return model, processor, device, id2label
 
 
@@ -123,56 +117,109 @@ def _score_windows_batched(
     return candidates
 
 
-def predict_video(
-    video_path: Path,
+def _make_predict_fn(model_dir: Path, display_name: str):
+    model_dir_str = str(model_dir.resolve())
+
+    def predict_video(
+        video_path: Path,
+        *,
+        threshold: float = DEFAULT_THRESHOLD,
+        stride_sec: float = DEFAULT_STRIDE_SEC,
+        half: str | int = "auto",
+        skip_ball_out: bool = True,
+    ) -> tuple[list[dict], dict]:
+        model, processor, device, id2label = _get_model(model_dir_str)
+        start_sec, duration_sec, label_half = resolve_half_range(video_path, half)
+        frames = load_video_frames_rgb(
+            video_path,
+            fps=INFER_FPS,
+            size=IMAGE_SIZE,
+            start_sec=start_sec,
+            duration_sec=duration_sec,
+        )
+        stride = max(1, int(stride_sec * INFER_FPS))
+        windows = sliding_windows(frames.shape[0], NUM_FRAMES, stride)
+
+        candidates = _score_windows_batched(
+            model,
+            processor,
+            device,
+            id2label,
+            frames,
+            windows,
+            label_half=label_half,
+        )
+
+        events, used_fallback = apply_threshold_with_fallback(
+            candidates,
+            threshold,
+            skip_ball_out=skip_ball_out,
+            min_confidence=MIN_CONFIDENCE,
+        )
+        merged = merge_events(events, gap_sec=MERGE_GAP_SEC)
+        meta = build_inference_meta(
+            model_name=display_name,
+            checkpoint=model_dir_str,
+            infer_fps=INFER_FPS,
+            window_sec=WINDOW_SEC,
+            stride_sec=stride_sec,
+            n_frames=frames.shape[0],
+            n_windows=len(windows),
+            threshold=threshold,
+            candidates=candidates,
+            used_fallback=used_fallback,
+            merged_count=len(merged),
+            analysis_start_sec=start_sec,
+            label_half=label_half,
+        )
+        return merged, meta
+
+    return predict_video
+
+
+def _make_is_ready_fn(model_dir: Path):
+    def is_ready() -> bool:
+        try:
+            _check_weights(model_dir)
+            return model_dir.exists()
+        except FileNotFoundError:
+            return False
+
+    return is_ready
+
+
+def slug_from_folder(folder: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", folder.lower()).strip("_")
+    return slug or "videomae"
+
+
+def display_name_from_folder(folder: str) -> str:
+    if folder == "videomae_soccernet":
+        return "VideoMAE"
+    if folder.startswith("videomae_"):
+        suffix = folder[len("videomae_") :].replace("_", " ")
+        return f"VideoMAE — {suffix}"
+    return folder.replace("_", " ")
+
+
+def make_videomae_spec(
+    model_id: str,
+    name: str,
+    model_dir: Path,
     *,
-    threshold: float = DEFAULT_THRESHOLD,
-    stride_sec: float = DEFAULT_STRIDE_SEC,
-    half: str | int = "auto",
-    skip_ball_out: bool = True,
-) -> tuple[list[dict], dict]:
-    model, processor, device, id2label = _get_model()
-    start_sec, duration_sec, label_half = resolve_half_range(video_path, half)
-    frames = load_video_frames_rgb(
-        video_path,
-        fps=INFER_FPS,
-        size=IMAGE_SIZE,
-        start_sec=start_sec,
-        duration_sec=duration_sec,
-    )
-    stride = max(1, int(stride_sec * INFER_FPS))
-    windows = sliding_windows(frames.shape[0], NUM_FRAMES, stride)
-
-    candidates = _score_windows_batched(
-        model,
-        processor,
-        device,
-        id2label,
-        frames,
-        windows,
-        label_half=label_half,
-    )
-
-    events, used_fallback = apply_threshold_with_fallback(
-        candidates,
-        threshold,
-        skip_ball_out=skip_ball_out,
-        min_confidence=MIN_CONFIDENCE,
-    )
-    merged = merge_events(events, gap_sec=MERGE_GAP_SEC)
-    meta = build_inference_meta(
-        model_name="VideoMAE",
-        checkpoint=str(VIDEOMAE_MODEL_DIR),
+    description: str | None = None,
+) -> ModelSpec:
+    model_dir = Path(model_dir)
+    desc = description or f"{name} — fenêtres ~1 s @ 16 fps"
+    return ModelSpec(
+        id=model_id,
+        name=name,
+        description=desc,
+        path=model_dir,
+        default_threshold=DEFAULT_THRESHOLD,
+        window_seconds=WINDOW_SEC,
         infer_fps=INFER_FPS,
-        window_sec=WINDOW_SEC,
-        stride_sec=stride_sec,
-        n_frames=frames.shape[0],
-        n_windows=len(windows),
-        threshold=threshold,
-        candidates=candidates,
-        used_fallback=used_fallback,
-        merged_count=len(merged),
-        analysis_start_sec=start_sec,
-        label_half=label_half,
+        merge_gap_sec=MERGE_GAP_SEC,
+        is_ready=_make_is_ready_fn(model_dir),
+        predict=_make_predict_fn(model_dir, name),
     )
-    return merged, meta

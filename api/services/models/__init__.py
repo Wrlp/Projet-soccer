@@ -1,7 +1,7 @@
-"""Modèles d'inférence enregistrés — ajouter un module + register() pour en étendre la liste."""
+"""Modèles d'inférence enregistrés — découverte auto dans outputs/models/ + SlowFast."""
 
-from api.config import SLOWFAST_CKPT, VIDEOMAE_MODEL_DIR
-from api.services.models import slowfast, videomae
+from api.config import MODELS_DIR, SLOWFAST_CKPT
+from api.services.models import discovery, slowfast
 from api.services.models.registry import (
     ModelSpec,
     default_model_id,
@@ -12,20 +12,9 @@ from api.services.models.registry import (
     register,
 )
 
-register(
-    ModelSpec(
-        id="videomae",
-        name="VideoMAE",
-        description="VideoMAE SoccerNet — fenêtres ~1 s @ 16 fps",
-        path=VIDEOMAE_MODEL_DIR,
-        default_threshold=videomae.DEFAULT_THRESHOLD,
-        window_seconds=videomae.WINDOW_SEC,
-        infer_fps=videomae.INFER_FPS,
-        merge_gap_sec=videomae.MERGE_GAP_SEC,
-        is_ready=videomae.is_model_ready,
-        predict=videomae.predict_video,
-    )
-)
+for spec in discovery.discover_models(MODELS_DIR):
+    register(spec)
+
 register(
     ModelSpec(
         id="slowfast",

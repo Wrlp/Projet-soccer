@@ -1,0 +1,40 @@
+{
+  "label_to_id": {
+    "Ball_out_of_play": 0,
+    "Clearance": 1,
+    "Corner": 2,
+    "Direct_free-kick": 3,
+    "Foul": 4,
+    "Goal": 5,
+    "Indirect_free-kick": 6,
+    "Kick-off": 7,
+    "Offside": 8,
+    "Penalty": 9,
+    "Red_card": 10,
+    "Shots_off_target": 11,
+    "Shots_on_target": 12,
+    "Substitution": 13,
+    "Throw-in": 14,
+    "Yellow_card": 15,
+    "Yellow_red_card": 16
+  },
+  "id_to_label": {
+    "0": "Ball_out_of_play",
+    "1": "Clearance",
+    "2": "Corner",
+    "3": "Direct_free-kick",
+    "4": "Foul",
+    "5": "Goal",
+    "6": "Indirect_free-kick",
+    "7": "Kick-off",
+    "8": "Offside",
+    "9": "Penalty",
+    "10": "Red_card",
+    "11": "Shots_off_target",
+    "12": "Shots_on_target",
+    "13": "Substitution",
+    "14": "Throw-in",
+    "15": "Yellow_card",
+    "16": "Yellow_red_card"
+  }
+}

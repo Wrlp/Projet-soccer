@@ -19,19 +19,36 @@ export interface ModelOption {
   highlightWindowSec: number;
 }
 
+const VIDEOMAE_UI_HINTS: ModelUiHints = {
+  thresholdHint: "VideoMAE : scores souvent plus élevés. Défaut 35 %.",
+  suggestedThresholdRange: [0.2, 0.3],
+  highlightWindowSec: 1,
+};
+
 const MODEL_UI_HINTS: Record<string, ModelUiHints> = {
-  videomae: {
-    thresholdHint: "VideoMAE : scores souvent plus élevés. Défaut 35 %.",
-    suggestedThresholdRange: [0.2, 0.3],
-    highlightWindowSec: 1,
-  },
+  videomae: VIDEOMAE_UI_HINTS,
   slowfast: {
     thresholdHint: "SlowFast : scores souvent entre 15–35 %. Défaut 18 %.",
     emptyScoreHint: "SlowFast produit souvent des scores entre 15 % et 35 % sur des extraits hors SoccerNet.",
     suggestedThresholdRange: [0.15, 0.25],
     highlightWindowSec: 2,
   },
+  random_forest: {
+    thresholdHint: "Random Forest : seuil par défaut 50 %.",
+    suggestedThresholdRange: [0.35, 0.6],
+    highlightWindowSec: 0.5,
+  },
 };
+
+function uiHintsForModel(id: string, apiModel: { defaultThreshold: number; windowSeconds?: number }): ModelUiHints {
+  if (MODEL_UI_HINTS[id]) return MODEL_UI_HINTS[id];
+  if (id === "videomae" || id.startsWith("videomae_")) return VIDEOMAE_UI_HINTS;
+  return {
+    thresholdHint: `Seuil par défaut : ${(apiModel.defaultThreshold * 100).toFixed(0)} %.`,
+    suggestedThresholdRange: [0.15, 0.35],
+    highlightWindowSec: apiModel.windowSeconds ?? 1,
+  };
+}
 
 /** Fallback hors-ligne si l'API n'est pas joignable. */
 export const FALLBACK_MODEL_OPTIONS: ModelOption[] = [
@@ -63,11 +80,7 @@ export function enrichModelFromApi(apiModel: {
   available?: boolean;
   windowSeconds?: number;
 }): ModelOption {
-  const hints = MODEL_UI_HINTS[apiModel.id] ?? {
-    thresholdHint: `Seuil par défaut : ${(apiModel.defaultThreshold * 100).toFixed(0)} %.`,
-    suggestedThresholdRange: [0.15, 0.35] as [number, number],
-    highlightWindowSec: apiModel.windowSeconds ?? 1,
-  };
+  const hints = uiHintsForModel(apiModel.id, apiModel);
   return { ...apiModel, ...hints };
 }
 
