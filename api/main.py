@@ -147,3 +147,35 @@ def health():
         "defaultModel": default_model_id(),
         "models": {spec.id: {"ready": ready[spec.id], "path": str(spec.path)} for spec in specs},
     }
+
+
+FIGURES_DIR = ROOT / "outputs" / "figures"
+FIGURE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+@app.get("/api/figures")
+def list_figures():
+    if not FIGURES_DIR.exists():
+        return {"models": []}
+
+    models: list[dict[str, object]] = []
+    for model_dir in sorted((p for p in FIGURES_DIR.iterdir() if p.is_dir()), key=lambda p: p.name.lower()):
+        files = sorted(
+            (
+                file.name
+                for file in model_dir.iterdir()
+                if file.is_file() and file.suffix.lower() in FIGURE_EXTENSIONS
+            ),
+            key=str.lower,
+        )
+        models.append({"id": model_dir.name, "figures": files})
+
+    return {"models": models}
+
+
+@app.get("/api/figures/{model_id}/{filename}")
+def get_figure(model_id: str, filename: str):
+    file_path = (FIGURES_DIR / model_id / filename).resolve()
+    if not file_path.is_file() or FIGURES_DIR.resolve() not in file_path.parents:
+        raise HTTPException(404, "Figure introuvable")
+    return FileResponse(file_path)

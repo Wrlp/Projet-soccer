@@ -5,8 +5,7 @@ import { SyncJobResults } from "./components/SyncJobResults";
 import { UploadPage } from "./pages/UploadPage";
 import { TimelinePage } from "./pages/TimelinePage";
 import { EventsPage } from "./pages/EventsPage";
-import { ConfusionPage } from "./pages/ConfusionPage";
-import { TrainingPage } from "./pages/TrainingPage";
+import { FiguresPage } from "./pages/FiguresPage";
 
 function RedirectTimeline() {
   const { jobId } = useParams();
@@ -19,10 +18,9 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<UploadPage />} />
-          <Route path="/matrice" element={<ConfusionPage />} />
-          <Route path="/entrainement" element={<TrainingPage />} />
-          <Route path="/resultats/:jobId/matrice" element={<Navigate to="/matrice" replace />} />
-          <Route path="/resultats/:jobId/entrainement" element={<Navigate to="/entrainement" replace />} />
+          <Route path="/figures" element={<FiguresPage />} />
+          <Route path="/resultats/:jobId/matrice" element={<Navigate to="/figures" replace />} />
+          <Route path="/resultats/:jobId/entrainement" element={<Navigate to="/figures" replace />} />
           <Route path="/resultats/:jobId/metriques" element={<RedirectTimeline />} />
           <Route path="/resultats/:jobId/classes" element={<RedirectTimeline />} />
           <Route path="/resultats/:jobId" element={<RedirectTimeline />} />

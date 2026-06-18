@@ -1,12 +1,15 @@
 # Rapport de projet — SportInsight AI
+
 ## Analyse automatique de matchs de soccer par intelligence artificielle
 
 **Cours** : Intelligence artificielle appliquée  
 **Équipe** :
+
 - Laure — Données (SoccerNet)
 - Flavien — Modèle IA (Video MAE)
 - Ewan — Interface web
 - Anna-Eve — Évaluation & Montage vidéo
+
 ---
 
 ## Table des matières
@@ -48,24 +51,29 @@ qu'un résumé du match.
 ### 2.2 Objectifs du projet
 
 - Détecter automatiquement les événements clés d'un match (buts, cartons,
-  remplacements, tirs, corners)
+remplacements, tirs, corners)
 - Produire une timeline horodatée des événements détectés
 - Générer un résumé structuré du match
 - Rendre cet outil accessible aux clubs amateurs comme aux structures professionnelles
 
 ### 2.3 Public cible
 
-| Utilisateurs principaux | Utilisateurs secondaires |
-|---|---|
-| Entraîneurs amateurs et semi-pro | Analystes sportifs |
+
+| Utilisateurs principaux           | Utilisateurs secondaires          |
+| --------------------------------- | --------------------------------- |
+| Entraîneurs amateurs et semi-pro  | Analystes sportifs                |
 | Clubs cherchant à gagner du temps | Médias et créateurs de highlights |
+
 
 ---
 
 ## 3. Données — SoccerNet
+
 ### 3.1 Présentation du dataset
+
 Pour notre projet, on a utilisé le dataset SoccerNet. SoccerNet est un dataset académique de référence appliqué pour la compréhension de vidéos de football. Il est beaucoup utilisé par les scientifiques pour le tracking des joueurs, la calibration caméra, la ré-identification et l'action spotting.
 Il regroupe 500 matchs complets issus de six ligues européennes sur les saisons de 2014 à 2017 :
+
 - La Premier league anglaise
 - La Liga espagnole
 - La Bundesliga allemande
@@ -80,7 +88,9 @@ Les annotations sont fournies au format JSON dans le fichier Labels-v2.json, qui
 Dans le cadre de SportInsight AI, nous exploitons à la fois les features préextraites pour la baseline du modèle et les vidéos brutes pour l'extraction de clips ciblés autour de chaque événement, comme détaillé dans la section 3.3.
 
 ### 3.2 Événements annotés
+
 SoccerNet-v2 propose des annotations pour 17 classes d'événements couvrant l'ensemble des actions d'un match de football. Pour notre projet, nous n'avons pas retenu les 17 classes mais seulement 11 car elles n'étaient pas toutes pertinentes, faussaient l'entrainement du modèle et allongaient le temps de téléchargement. Les 11 classes gardées sont : 
+
 - Buts
 - Corners
 - Fautes
@@ -94,29 +104,41 @@ SoccerNet-v2 propose des annotations pour 17 classes d'événements couvrant l'e
 - Cartons jaunes-rouges
 
 De plus, on pouvait constater un déséquilibre entre les différentes classes : 
-![distribution des classes](/outputs/exploration/distribution_classes.png)
+distribution des classes
 Pour limiter l'impact de ce déséquilibre sur l'entrainement du modèle, nous avons choisis de faire un entrainement avec un échantillonage ciblé. Nous avons décidé de prendre 300 clips extraits pour les classes abondantes et le maximum pour les classes rares (carton rouge, carton jaune-rouge, pénalties).
 
 ### 3.3 Préparation et nettoyage des données
+
 Pour la préparation et le nettoyage des données, nous avons séparé le travail en trois scripts Python et elle a évolué en deux phases au cours du projet.
 Dans un premier temps, nous avons travaillé exclusivement avec les features préextraites fournies par SoccerNet (ResNet-152, PCA512), ce qui nous a permis de construire rapidement un pipeline fonctionnel et de valider l'ensemble de la chaîne de traitement sans GPU ni téléchargement massif de données. Cette approche, légère et reproductible, a constitué la base de notre première baseline IA.
 Dans un second temps, afin d'enrichir le dataset d'entraînement et de permettre au modèle d'apprendre directement depuis les pixels vidéo, nous avons développé une stratégie d'extraction ciblée de clips vidéo bruts.
+
 #### Téléchargement des données (download_data.py)
+
 Les données sont récupérées depuis les serveurs SoccerNet via leur API Python officielle. 
 Dans un premier temps, nous téléchargeons les annotations Labels-v2.json et les features préextraites ResNET_TF2_PCA512.npy pour les splits train, validation et test. Ces fichiers sont accessibles librement sans mot de passe contrairement aux vidéos brutes au format .mkv qui nécessitent quant à elles la signature d'un NDA auprès des auteurs de SoccerNet pour obtenir un mot de passe afin d'y avir accès. Pour des raisons de sécurité, ce mot de passe est stocké localement dans un fichier .env non versionné et exclu du dépôt Git.
+
 #### Extraction des clips ciblés (extract_clips.py)
+
 Télécharger les vidéos brutes en entier représentaient beaucoup trop de gigaoctets et beaucoup trop de temps de téléchargement. Pour diminuer cela, nous avons opté pour une stratégie d'extraction ciblée. Le script télécharge les vidéos d'un match, extrait les clips correspondant aux événements annotés, puis supprime immédiatement les vidéos. À tout moment, un seul match occupe l'espace disque temporairement.
 Chaque clip est centré sur le timestamp de l'événement et s'étend sur 3 secondes avant et 2 secondes après celui-ci, soit environ 125 frames à 25 fps. Les frames ont été extraites en deux résolutions distinctes. Une première extraction à 112×112 pixels a été réalisée pour tester et valider le pipeline rapidement. Une seconde extraction à 720×720 pixels a ensuite été effectuée pour fournir au modèle des frames de meilleure qualité pour l'entraînement final. Pour chaque clip, deux formats sont produits simultanément :
+
 - un fichier .npy contenant les frames brutes sous forme de tableau NumPy de dimensions (125, 112, 112, 3) ou (125, 720, 720, 3), destiné à l'entraînement du modèle
 - un fichier .mp4 destiné à l'affichage dans l'interface utilisateur
 Le nombre de clips extraits par classe est plafonné, comme détaillé en section 3.2, afin de limiter le déséquilibre. À la fin, nous avions quand même 700 giga d'extraits vidéos téléchargés.
+
 #### Formatage pour le modèle (prepare_data.py)
+
 En parallèle des clips vidéo, un fichier matches.pkl est généré à partir des features préextraites et des annotations. Ce fichier contient pour chaque match un dictionnaire structuré incluant l'identifiant du match, les chemins vers les fichiers de features pour chaque mi-temps, et la liste des événements avec leur label, leur mi-temps et leur timestamp en secondes.
 
 ### 3.4 Format des données en entrée du modèle
+
 Les données préparées sont mises à disposition du modèle sous deux formats complémentaires, selon l'architecture utilisée.
+
 #### Format features préextraites (matches.pkl)
+
 Pour la baseline et les modèles légers de type LSTM ou Transformer, le fichier matches.pkl constitue l'entrée principale. Il s'agit d'une liste de dictionnaires, un par match, structurés comme suit :
+
 ```Python
 {
     "match_id":        "england_epl/2014-2015/Chelsea_Burnley",
@@ -132,9 +154,13 @@ Pour la baseline et les modèles légers de type LSTM ou Transformer, le fichier
     ]
 }
 ```
+
 Les features sont des vecteurs de 512 dimensions extraits par ResNet-152 puis réduits par ACP, échantillonnés à 2 fps. Chaque valeur représente une frame de la vidéo, soit un point temporel toutes les 0,5 secondes. Les features ne sont pas chargées en mémoire dans le fichier matches.pkl, seuls les chemins sont stockés
+
 #### Format clips vidéo (outputs/clips/)
+
 Pour les architectures plus avancées travaillant directement sur les pixels vidéo, les clips extraits sont organisés par classe dans deux sous-dossiers :
+
 ```
 outputs/clips/
 ├── npy/                        <- entraînement du modèle
@@ -148,20 +174,93 @@ outputs/clips/
     │   └── ...
     └── ...
 ```
+
 Chaque fichier .npy contient une séquence de frames brutes de dimensions (125, 720, 720, 3). 
 Les fichiers .mp4 correspondants sont destinés à l'interface utilisateur, permettant d'afficher les moments clés détectés.
 
 ---
 
-## 4. Modèle IA 
+## 4. Modèle IA
 
 ### 4.1 Choix de l'architecture
 
-### 4.2 Architecture 
+Le développement du modèle s'est déroulé en deux étapes complémentaires, en cohérence avec la préparation des données décrite en section 3.
+
+**Baseline — Random Forest sur features préextraites.** Dans un premier temps, nous avons entraîné un classifieur Random Forest sur les vecteurs ResNet-152 + PCA512 fournis par SoccerNet (2 fps). Cette approche a permis de valider rapidement le pipeline de bout en bout — chargement des annotations, construction du dataset, entraînement et évaluation — sans GPU ni téléchargement massif de vidéos. Le modèle traite une fenêtre de 10 frames consécutives (soit 5 secondes à 2 fps) autour de chaque instant annoté. Cette baseline reste disponible dans l'interface web, mais elle ne capture pas la dynamique temporelle fine des séquences vidéo : chaque fenêtre est traitée indépendamment, sans modélisation explicite du mouvement.
+
+**Modèle principal — VideoMAE.** Pour exploiter directement les pixels des clips extraits (section 3.3), nous avons retenu VideoMAE (*Video Masked Autoencoder*), un transformeur pré-entraîné sur Kinetics puis fine-tuné sur notre jeu de clips SoccerNet. Ce choix s'appuie sur plusieurs arguments : le modèle apprend des représentations spatio-temporelles à partir de courtes séquences vidéo ; le pré-entraînement sur Kinetics fournit une initialisation robuste malgré un volume de données limité ; l'architecture par patches (tubelet) est adaptée à la classification d'actions courtes comme les événements de soccer. VideoMAE constitue le modèle par défaut du projet et celui sur lequel portent les résultats d'évaluation de la section 5.
+
+**Variante exploratoire — SlowFast.** Nous avons également implémenté une architecture SlowFast simplifiée, avec deux backbones 3D ResNet-18 (voie lente et voie rapide) dont les features sont concaténées avant classification. Cette variante permet de comparer une approche à double fréquence temporelle avec le transformeur VideoMAE, mais n'a pas été retenue comme modèle principal en raison de performances inférieures sur notre jeu de validation.
+
+### 4.2 Architecture
+
+#### VideoMAE — modèle principal
+
+Le modèle utilisé est `MCG-NJU/videomae-base-finetuned-kinetics`, chargé via la bibliothèque Hugging Face Transformers et adapté aux classes d'événements retenues dans le projet (section 3.2). L'architecture repose sur un encodeur Vision Transformer de 12 couches (dimension cachée 768, 12 têtes d'attention) qui traite la vidéo sous forme de patches spatio-temporels :
+
+- **Patches** : taille 16×16 pixels, regroupés en tubelets de 2 frames consécutives (`tubelet_size = 2`).
+- **Entrée** : 16 frames RGB redimensionnées à 224×224 pixels (soit environ 1 seconde de vidéo à 16 fps lors de l'inférence).
+- **Tête de classification** : couche linéaire remplaçant la tête Kinetics d'origine, produisant un logits par classe d'événement.
+
+Lors du fine-tuning, chaque clip d'entraînement (125 frames à 25 fps, soit 5 secondes) est sous-échantillonné uniformément en 16 frames. Le processeur `VideoMAEImageProcessor` applique la normalisation attendue par le modèle pré-entraîné avant l'inférence.
+
+#### Random Forest — baseline
+
+Le classifieur Random Forest (100 arbres, `max_depth=15`) reçoit en entrée un vecteur aplati de 10 frames de features PCA512 (5 120 dimensions après normalisation par `StandardScaler`). Il prédit la classe d'événement frame par frame à 2 fps.
+
+#### SlowFast — variante
+
+L'architecture `SlowFastSimple` utilise deux réseaux R3D-18 en parallèle : la voie lente traite 8 frames espacées, la voie rapide 64 frames à haute fréquence (facteur α = 8). Les vecteurs de features (512 dimensions chacun) sont concaténés puis passés dans un classifieur fully-connected à deux couches.
 
 ### 4.3 Pipeline d'entraînement
 
+Le fine-tuning de VideoMAE est orchestré par le module `videomae_finetune/train.py`. Le pipeline suit les étapes suivantes :
+
+1. **Découverte des données** — Le script parcourt `outputs/clips/mp4/`, où les clips sont organisés par classe (un sous-dossier par type d'événement). Un plafond de 300 clips par classe est appliqué pour limiter le déséquilibre (section 3.2).
+2. **Split train/validation** — Partition stratifiée 80/20 (`random_state=42`) afin de préserver la distribution des classes dans les deux jeux.
+3. **Chargement des clips** — La classe `SoccerVideoDataset` lit chaque fichier vidéo avec OpenCV, convertit les frames en RGB, les redimensionne à la taille cible et sélectionne 16 frames par interpolation linéaire sur la durée du clip.
+4. **Fine-tuning** — Le modèle pré-entraîné est instancié avec `num_labels` adapté au nombre de classes détectées. La configuration (`num_frames`, `image_size`, mappings `label2id`/`id2label`) est mise à jour avant l'entraînement.
+5. **Évaluation et sauvegarde** — À chaque epoch, le F1-score macro est calculé sur le jeu de validation. Le checkpoint correspondant au meilleur score est sauvegardé dans `outputs/models/<nom_expérience>/best_model/`, accompagné du processeur d'images et du fichier `labels.json`.
+6. **Historique** — Les métriques par epoch (loss d'entraînement, loss de validation, accuracy, F1 macro) sont exportées dans `metrics.json`.
+
+Pour la baseline Random Forest, le pipeline `main.py` enchaîne le chargement des features (`data_loader.py`), la construction du dataset avec fenêtre temporelle (`dataset_builder.py`), l'entraînement (`train_model.py`) et la sauvegarde des artéfacts (`event_detection_model.pkl`, `scaler.pkl`, `idx_to_label.pkl`).
+
 ### 4.4 Stratégie d'entraînement et optimisation
+
+#### Hyperparamètres VideoMAE
+
+
+| Paramètre        | Valeur                                        | Rôle                                               |
+| ---------------- | --------------------------------------------- | -------------------------------------------------- |
+| `learning_rate`  | 5×10⁻⁵                                        | Taux d'apprentissage faible, adapté au fine-tuning |
+| `weight_decay`   | 0,01                                          | Régularisation L2                                  |
+| `batch_size`     | 4                                             | Compromis mémoire GPU / stabilité                  |
+| `epochs`         | 50                                             | Convergence observée sans sur-apprentissage marqué |
+| `num_frames`     | 16                                            | Fenêtre temporelle d'entrée                        |
+| `image_size`     | 224 (inférence) / 112 (certaines expériences) | Résolution des frames                              |
+| `warmup_ratio`   | 0,1                                           | Phase de montée en charge du scheduler             |
+| `max_per_folder` | 300                                           | Plafond d'échantillons par classe                  |
+
+
+#### Techniques d'optimisation
+
+- **Optimiseur AdamW** avec décroissance de poids, appliqué uniquement aux paramètres entraînables (backbone gelé si l'option `--freeze-backbone` est activée).
+- **Scheduler cosine avec warmup** : montée progressive du taux d'apprentissage sur les 10 % premiers steps, puis décroissance cosinusoïdale jusqu'à la fin de l'entraînement.
+- **Pondération des classes** : la fonction de perte cross-entropy est pondérée par l'inverse de la fréquence de chaque classe dans le jeu d'entraînement, compensant le déséquilibre résiduel malgré le plafonnement à 300 clips.
+- **Mixed precision (AMP)** : entraînement en précision mixte sur GPU pour accélérer les itérations et réduire la consommation mémoire.
+- **Sélection du meilleur modèle** : sauvegarde basée sur le F1-score macro de validation, et non sur la loss, afin de privilégier l'équilibre entre classes.
+
+#### Inférence sur vidéo complète
+
+Lors de l'analyse d'une vidéo utilisateur (section 6), le modèle VideoMAE ne traite pas la vidéo en une seule passe. L'API applique une stratégie de **fenêtres glissantes** :
+
+1. La vidéo est décodée à 16 fps et redimensionnée à 224×224.
+2. Des fenêtres de 16 frames consécutives (~1 s) sont extraites avec un pas configurable (`stride_sec`, par défaut 1 seconde).
+3. Chaque fenêtre est classifiée par batch (taille 8) ; les prédictions dont la confiance dépasse un seuil (par défaut 0,35) sont retenues.
+4. Les détections proches dans le temps (écart ≤ 2 s, même classe) sont fusionnées en ne conservant que la prédiction la plus confiante.
+5. Si aucune prédiction ne dépasse le seuil, un mode secours retourne les fenêtres les plus confiantes afin d'éviter un résultat vide.
+
+Cette approche transforme un classifieur de clips courts en détecteur d'événements sur des séquences de durée variable (extraits de quelques minutes ou mi-temps complètes).
 
 ---
 
@@ -226,11 +325,13 @@ $$F1 = 2 \times \frac{\text{Précision} \times \text{Rappel}}{\text{Précision} 
 
 *(Figure — tableau des métriques)*
 
-| Métrique          | Valeur |
-|-------------------|--------|
-| Précision macro   | 43.3%  |
-| Rappel macro      | 44.3%  |
-| F1-score macro    | 43.1%  |
+
+| Métrique        | Valeur |
+| --------------- | ------ |
+| Précision macro | 43.3%  |
+| Rappel macro    | 44.3%  |
+| F1-score macro  | 43.1%  |
+
 
 Le modèle atteint un F1-score macro de 43.1%, avec une précision et un
 rappel quasi symétriques, ce qui indique que le balancement des classes
@@ -309,11 +410,120 @@ expérimentées dans le cadre de ce projet.
 
 ## 6. Interface web
 
+L'interface web constitue le point d'entrée de SportInsight AI : elle permet à un utilisateur non spécialiste de déposer une vidéo, lancer l'analyse et consulter les événements détectés sous forme de timeline interactive. Elle communique avec une API Python qui orchestre l'inférence et renvoie les résultats structurés.
+
 ### 6.1 Technologies utilisées
+
+L'application repose sur une architecture **client-serveur** découplée, lancée en développement par le script `run-dev.sh` qui démarre simultanément l'API et le frontend.
+
+#### Frontend
+
+
+| Technologie                   | Rôle                                                            |
+| ----------------------------- | --------------------------------------------------------------- |
+| **React 19** + **TypeScript** | Interface utilisateur composants fonctionnels                   |
+| **Vite 6**                    | Bundler et serveur de développement (port 5173)                 |
+| **React Router 7**            | Navigation entre les pages (upload, résultats, figures)         |
+| **CSS personnalisé**          | Mise en page et thème (`global.css`), sans framework UI externe |
+
+
+Le frontend est volontairement léger : aucune bibliothèque de composants lourde n'est utilisée. Les graphiques (timeline, courbes) sont implémentés en SVG natif dans des composants dédiés (`TimelineChart`, `LineChart`, `SimpleBarChart`). Un mode démonstration (`VITE_USE_MOCK=true`) permet de tester l'interface sans API grâce à des données simulées.
+
+#### Backend (API)
+
+
+| Technologie                    | Rôle                                                  |
+| ------------------------------ | ----------------------------------------------------- |
+| **FastAPI**                    | Framework REST, documentation automatique sur `/docs` |
+| **Uvicorn**                    | Serveur ASGI (port 8000)                              |
+| **PyTorch** + **Transformers** | Chargement et inférence VideoMAE                      |
+| **scikit-learn**               | Inférence Random Forest (baseline)                    |
+| **OpenCV**                     | Décodage vidéo et extraction de frames                |
+
+
+L'API expose des endpoints REST sous le préfixe `/api`. Le proxy Vite redirige les requêtes `/api` vers `localhost:8000` en développement, évitant les problèmes CORS. En production, les deux services peuvent être déployés séparément avec la variable `VITE_API_URL` pointant vers l'API.
 
 ### 6.2 Fonctionnalités de l'interface
 
+L'interface est organisée autour de quatre écrans accessibles via une barre de navigation.
+
+#### Page d'upload (`/`)
+
+Point d'entrée de l'application. L'utilisateur peut :
+
+- **Déposer une vidéo** par glisser-déposer ou sélection de fichier (formats MP4, MKV, WebM, AVI, MOV).
+- **Choisir le modèle d'analyse** parmi ceux disponibles sur le serveur (VideoMAE par défaut, Random Forest si entraîné).
+- **Ajuster les paramètres** :
+  - *Seuil de confiance* (0,05–0,90) : filtre les prédictions peu fiables.
+  - *Pas d'analyse* (1–5 s) : intervalle entre fenêtres glissantes ; un pas court améliore la précision temporelle au prix du temps de calcul.
+  - *Type de vidéo* : mode auto (extrait ou match), 1ère ou 2ème mi-temps pour les vidéos longues (> 42 min).
+- **Suivre la progression** via une barre et un indicateur de chargement pendant l'analyse asynchrone.
+
+Une fois l'analyse terminée, l'utilisateur est redirigé automatiquement vers la timeline des résultats.
+
+#### Page Timeline (`/resultats/:jobId/timeline`)
+
+Écran principal de consultation. Il combine :
+
+- Un **lecteur vidéo** synchronisé avec la vidéo analysée (servie par l'API, convertie en MP4 si nécessaire).
+- Une **timeline interactive** affichant les événements détectés sous forme d'emojis positionnés sur l'axe temporel, avec possibilité de cliquer pour sauter à un instant précis.
+- Une **barre latérale d'événements** listant les détections avec leur type, horodatage et score de confiance ; l'élément correspondant à la position de lecture est mis en surbrillance automatiquement.
+
+#### Page Événements (`/resultats/:jobId/evenements`)
+
+Vue tabulaire de toutes les détections, triées par ordre chronologique. Chaque ligne affiche le type d'événement (avec code couleur), le timestamp formaté et le pourcentage de confiance. Un message explicatif apparaît si le mode secours a été utilisé (aucune prédiction au-dessus du seuil).
+
+#### Page Figures (`/figures`)
+
+Écran de visualisation des graphiques d'évaluation générés par le script `Eval/evalution.py` et stockés dans `outputs/figures/`. L'utilisateur peut filtrer par modèle expérimental (par exemple `videomae_soccernet_720_avec_balancement`) et agrandir chaque figure (F1 par classe, matrice de confusion, courbes d'entraînement, analyse du seuil).
+
+#### Gestion d'état
+
+Un contexte React (`AnalysisContext`) centralise les résultats de l'analyse en cours : identifiant du job, données de prédiction et métadonnées. Le composant `SyncJobResults` recharge automatiquement les résultats lorsque l'utilisateur navigue directement vers une URL de résultats.
+
 ### 6.3 Intégration du modèle
+
+L'intégration entre l'interface et les modèles d'IA repose sur un pipeline asynchrone orchestré par l'API.
+
+#### Flux d'analyse
+
+```
+Utilisateur → POST /api/analyze → Job créé → Tâche en arrière-plan
+                                                    ↓
+                                          Décodage vidéo + inférence
+                                                    ↓
+                              Résultats JSON ← GET /api/jobs/{id}/results
+                                                    ↓
+                                         Affichage timeline + événements
+```
+
+1. **Upload** — Le frontend envoie la vidéo et les paramètres (modèle, seuil, pas, mi-temps) via `multipart/form-data` à `POST /api/analyze`.
+2. **Job asynchrone** — L'API crée un identifiant de job, sauvegarde la vidéo dans `outputs/uploads/` et lance l'inférence en tâche de fond (`BackgroundTasks` FastAPI). Le frontend interroge `GET /api/jobs/{id}` toutes les secondes jusqu'à obtention du statut `completed`.
+3. **Inférence** — Le pipeline (`api/services/pipeline.py`) charge le modèle sélectionné via un registre central (`api/services/models/registry.py`) et exécute la prédiction par fenêtres glissantes (section 4.4).
+4. **Résultats** — Les prédictions sont enrichies de métadonnées (durée, mode d'analyse, modèle utilisé, seuil appliqué) et sérialisées en JSON dans `outputs/jobs/{id}_result.json`. Le frontend récupère ce fichier via `GET /api/jobs/{id}/results`.
+
+#### Registre de modèles
+
+L'API découvre automatiquement les modèles VideoMAE disponibles en parcourant `outputs/models/` : chaque sous-dossier contenant un répertoire `best_model/` avec des poids (`model.safetensors`) est enregistré comme modèle utilisable. Le Random Forest est ajouté s'il a été entraîné (`event_detection_model.pkl`). L'endpoint `GET /api/models` expose la liste des modèles avec leur disponibilité, permettant au frontend d'afficher uniquement les options prêtes à l'emploi.
+
+#### Paramètres exposés à l'utilisateur
+
+Les hyperparamètres d'inférence configurables depuis l'interface correspondent directement aux arguments du pipeline backend :
+
+
+| Paramètre interface | Paramètre API | Effet                                                |
+| ------------------- | ------------- | ---------------------------------------------------- |
+| Seuil de confiance  | `threshold`   | Filtre les prédictions ; défaut 0,35 pour VideoMAE   |
+| Pas d'analyse       | `stride_sec`  | Intervalle entre fenêtres glissantes (1–5 s)         |
+| Type de vidéo       | `half`        | Limite l'analyse à une mi-temps sur les matchs longs |
+| Modèle d'analyse    | `model`       | Sélection du modèle dans le registre                 |
+
+
+#### Lecture vidéo
+
+L'endpoint `GET /api/jobs/{id}/video` sert la vidéo analysée au lecteur HTML5. Si le fichier source est au format MKV ou WebM, l'API le convertit automatiquement en MP4 via FFmpeg (`api/services/video_playback.py`) pour garantir la compatibilité navigateur.
+
+Cette architecture modulaire permet d'ajouter de nouveaux modèles (SlowFast, futurs transformeurs) en implémentant une fonction `predict` et en l'enregistrant dans le registre, sans modification du frontend.
 
 ---
 
@@ -331,11 +541,13 @@ split stratifié, `random_state=42`) via le script d'évaluation dédié.
 
 *(Figure — tableau des métriques)*
 
-| Métrique          | Valeur |
-|-------------------|--------|
-| Précision macro   | 43.3%  |
-| Rappel macro      | 44.3%  |
-| F1-score macro    | 43.1%  |
+
+| Métrique        | Valeur |
+| --------------- | ------ |
+| Précision macro | 43.3%  |
+| Rappel macro    | 44.3%  |
+| F1-score macro  | 43.1%  |
+
 
 Le modèle atteint un F1-score macro de **43.1%**, avec une précision et
 un rappel équilibrés (43.3% et 44.3% respectivement). Cette symétrie
@@ -390,14 +602,14 @@ apprises : Direct_free-kick (51), Yellow_card (50), Corner (47) et
 Goal (38). On observe trois patterns de confusion structurels :
 
 - **Tirs** : les classes Shots_on_target et Shots_off_target sont confondues
-  mutuellement (17 cas dans chaque sens), formant un bloc de confusion
-  symétrique qui traduit l'incapacité du modèle à distinguer ces deux
-  catégories sans information sur la destination finale du ballon.
+mutuellement (17 cas dans chaque sens), formant un bloc de confusion
+symétrique qui traduit l'incapacité du modèle à distinguer ces deux
+catégories sans information sur la destination finale du ballon.
 - **Événements d'arrêt de jeu** : Goal est confondu avec Direct_free-kick
-  (6 cas) et Offside (6 cas), deux situations qui génèrent des séquences
-  d'arrêt de jeu visuellement similaires.
+(6 cas) et Offside (6 cas), deux situations qui génèrent des séquences
+d'arrêt de jeu visuellement similaires.
 - **Classes rares** : Penalty (7 instances au total) n'est jamais prédit
-  correctement, ses exemples étant absorbés par Direct_free-kick et Goal.
+correctement, ses exemples étant absorbés par Direct_free-kick et Goal.
 
 #### 7.1.4 Analyse du seuil de confiance
 
@@ -449,20 +661,20 @@ balancement des classes.
 ### 8.1 Limites actuelles
 
 - **Features incomplètes** : tous les matchs du dépôt SoccerNet ne disposent pas
-  de features complètes, ce qui limite le volume de données utilisables.
+de features complètes, ce qui limite le volume de données utilisables.
 - **Modèle baseline** : le Random Forest utilisé comme baseline ne capture pas la
-  dimension séquentielle et temporelle des événements.
+dimension séquentielle et temporelle des événements.
 - **Absence de contexte temporel** : la version actuelle traite chaque frame
-  indépendamment, sans fenêtre contextuelle pour enrichir la décision.
+indépendamment, sans fenêtre contextuelle pour enrichir la décision.
 
 ### 8.2 Perspectives d'amélioration
 
 1. **Contexte temporel** : intégrer des fenêtres glissantes autour de chaque
-   événement pour enrichir le signal d'entrée du modèle.
+  événement pour enrichir le signal d'entrée du modèle.
 2. **Modèles séquentiels** : tester des architectures LSTM ou Transformers pour
-   mieux capturer la dynamique temporelle du match.
+  mieux capturer la dynamique temporelle du match.
 3. **Résumé automatique** : passer de la détection d'événements à un vrai résumé
-   narratif générant des highlights et des rapports automatiques.
+  narratif générant des highlights et des rapports automatiques.
 4. **Analyse en temps réel** : optimiser le pipeline pour une détection en direct.
 
 ---
@@ -484,7 +696,8 @@ du projet.
 ## 10. Références
 
 - Giancola, S. et al. (2022). *SoccerNet-v2: A Dataset and Benchmarks for Holistic
-  Understanding of Broadcast Soccer Videos*. CVPR Workshop.
+Understanding of Broadcast Soccer Videos*. CVPR Workshop.
 - Feichtenhofer, C. et al. (2019). *SlowFast Networks for Video Recognition*. ICCV.
-- SoccerNet official repository : https://github.com/SoccerNet/soccernet
-- PyTorch documentation : https://pytorch.org/docs/
+- SoccerNet official repository : [https://github.com/SoccerNet/soccernet](https://github.com/SoccerNet/soccernet)
+- PyTorch documentation : [https://pytorch.org/docs/](https://pytorch.org/docs/)
+

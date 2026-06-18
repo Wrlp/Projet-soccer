@@ -7,8 +7,7 @@ const analysisTabs = [
 ] as const;
 
 const projectTabs = [
-  { to: "/matrice", label: "Matrice" },
-  { to: "/entrainement", label: "Entraînement" },
+  { to: "/figures", label: "Figures" },
 ] as const;
 
 export function Layout() {

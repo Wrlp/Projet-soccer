@@ -81,3 +81,12 @@ export interface ApiModelsResponse {
   default: string;
   models: ApiModelInfo[];
 }
+
+export interface ApiFiguresModel {
+  id: string;
+  figures: string[];
+}
+
+export interface ApiFiguresResponse {
+  models: ApiFiguresModel[];
+}

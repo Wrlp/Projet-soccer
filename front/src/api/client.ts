@@ -1,5 +1,5 @@
 import { enrichModelFromApi, FALLBACK_MODEL_OPTIONS, type ModelOption } from "../constants/models";
-import type { AnalysisParams, AnalysisResult, ApiModelsResponse, UploadResponse } from "../types";
+import type { AnalysisParams, AnalysisResult, ApiFiguresResponse, ApiModelsResponse, UploadResponse } from "../types";
 import { buildMockAnalysis } from "./mockData";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
@@ -65,6 +65,16 @@ export async function fetchModels(): Promise<{ defaultModel: string; models: Mod
     defaultModel: data.default,
     models: data.models.map(enrichModelFromApi),
   };
+}
+
+export async function fetchFiguresByModel(): Promise<ApiFiguresResponse> {
+  const res = await fetch(`${API}/figures`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export function getFigureUrl(modelId: string, filename: string): string {
+  return `${API}/figures/${encodeURIComponent(modelId)}/${encodeURIComponent(filename)}`;
 }
 
 export async function pollUntilComplete(jobId: string, onProgress?: (p: number) => void) {

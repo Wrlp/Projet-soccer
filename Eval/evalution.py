@@ -22,10 +22,10 @@ from torch.utils.data import DataLoader
 
 # Chemins principaux
 DATA_ROOT      = Path(r"/mnt/e/SOCCER")
-MODEL_DIR      = Path("outputs/models/videomae_soccernet_112/best_model")
-OUTPUT_DIR     = Path("outputs/figures/videomae_soccernet_112")
+MODEL_DIR      = Path("outputs/models/videomae_soccernet_720_sans_freekick/best_model")
+OUTPUT_DIR     = Path("outputs/figures/videomae_soccernet_720_sans_freekick")
 LABELS_FILE    = MODEL_DIR / "labels.json"
-METRICS_FILE   = Path("outputs/figures/videomae_soccernet_112/metrics.json")
+METRICS_FILE   = Path("outputs/figures/videomae_soccernet_720_sans_freekick/metrics.json")
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
