@@ -63,14 +63,93 @@ qu'un résumé du match.
 ---
 
 ## 3. Données — SoccerNet
-
 ### 3.1 Présentation du dataset
+Pour notre projet, on a utilisé le dataset SoccerNet. SoccerNet est un dataset académique de référence appliqué pour la compréhension de vidéos de football. Il est beaucoup utilisé par les scientifiques pour le tracking des joueurs, la calibration caméra, la ré-identification et l'action spotting.
+Il regroupe 500 matchs complets issus de six ligues européennes sur les saisons de 2014 à 2017 :
+- La Premier league anglaise
+- La Liga espagnole
+- La Bundesliga allemande
+- La Ligue 1 française
+- La Serie A italienne
+- La Ligue des Champions
+
+Chaque match est accompagné d'annotations temporelles précises produites par des experts, réparties sur 17 classes d'événements pour un total de plus de 300 000 annotations.
+Pour chaque match, SoccerNet-v2 met à disposition plusieurs types de fichiers. Les vidéos brutes sont disponibles avec des résolutions de 224p et 720p. 
+Cependant, pour avoir accès aux données, il faut signer un NDA (accord de non-divulgation) en raison des droits télévisuels.
+Les annotations sont fournies au format JSON dans le fichier Labels-v2.json, qui contient pour chaque événement son horodatage, sa classe et sa mi-temps. Enfin, des features visuelles préextraites sont disponibles librement : chaque frame de la vidéo est représentée par un vecteur de 512 dimensions, obtenu en faisant passer les images dans un réseau ResNet-152 puis en appliquant une réduction de dimensionnalité par ACP. Ces features sont échantillonnées à 2 fps, soit une représentation toutes les 0,5 secondes.
+Dans le cadre de SportInsight AI, nous exploitons à la fois les features préextraites pour la baseline du modèle et les vidéos brutes pour l'extraction de clips ciblés autour de chaque événement, comme détaillé dans la section 3.3.
 
 ### 3.2 Événements annotés
+SoccerNet-v2 propose des annotations pour 17 classes d'événements couvrant l'ensemble des actions d'un match de football. Pour notre projet, nous n'avons pas retenu les 17 classes mais seulement 11 car elles n'étaient pas toutes pertinentes, faussaient l'entrainement du modèle et allongaient le temps de téléchargement. Les 11 classes gardées sont : 
+- Buts
+- Corners
+- Fautes
+- Cartons jaunes
+- Cartons rouges
+- Tirs cadrés
+- Tirs non cadrés
+- Coups francs directs
+- Penalties
+- Hors-jeux 
+- Cartons jaunes-rouges
+
+De plus, on pouvait constater un déséquilibre entre les différentes classes : 
+![distribution des classes](/outputs/exploration/distribution_classes.png)
+Pour limiter l'impact de ce déséquilibre sur l'entrainement du modèle, nous avons choisis de faire un entrainement avec un échantillonage ciblé. Nous avons décidé de prendre 300 clips extraits pour les classes abondantes et le maximum pour les classes rares (carton rouge, carton jaune-rouge, pénalties).
 
 ### 3.3 Préparation et nettoyage des données
+Pour la préparation et le nettoyage des données, nous avons séparé le travail en trois scripts Python et elle a évolué en deux phases au cours du projet.
+Dans un premier temps, nous avons travaillé exclusivement avec les features préextraites fournies par SoccerNet (ResNet-152, PCA512), ce qui nous a permis de construire rapidement un pipeline fonctionnel et de valider l'ensemble de la chaîne de traitement sans GPU ni téléchargement massif de données. Cette approche, légère et reproductible, a constitué la base de notre première baseline IA.
+Dans un second temps, afin d'enrichir le dataset d'entraînement et de permettre au modèle d'apprendre directement depuis les pixels vidéo, nous avons développé une stratégie d'extraction ciblée de clips vidéo bruts.
+#### Téléchargement des données (download_data.py)
+Les données sont récupérées depuis les serveurs SoccerNet via leur API Python officielle. 
+Dans un premier temps, nous téléchargeons les annotations Labels-v2.json et les features préextraites ResNET_TF2_PCA512.npy pour les splits train, validation et test. Ces fichiers sont accessibles librement sans mot de passe contrairement aux vidéos brutes au format .mkv qui nécessitent quant à elles la signature d'un NDA auprès des auteurs de SoccerNet pour obtenir un mot de passe afin d'y avir accès. Pour des raisons de sécurité, ce mot de passe est stocké localement dans un fichier .env non versionné et exclu du dépôt Git.
+#### Extraction des clips ciblés (extract_clips.py)
+Télécharger les vidéos brutes en entier représentaient beaucoup trop de gigaoctets et beaucoup trop de temps de téléchargement. Pour diminuer cela, nous avons opté pour une stratégie d'extraction ciblée. Le script télécharge les vidéos d'un match, extrait les clips correspondant aux événements annotés, puis supprime immédiatement les vidéos. À tout moment, un seul match occupe l'espace disque temporairement.
+Chaque clip est centré sur le timestamp de l'événement et s'étend sur 3 secondes avant et 2 secondes après celui-ci, soit environ 125 frames à 25 fps. Les frames ont été extraites en deux résolutions distinctes. Une première extraction à 112×112 pixels a été réalisée pour tester et valider le pipeline rapidement. Une seconde extraction à 720×720 pixels a ensuite été effectuée pour fournir au modèle des frames de meilleure qualité pour l'entraînement final. Pour chaque clip, deux formats sont produits simultanément :
+- un fichier .npy contenant les frames brutes sous forme de tableau NumPy de dimensions (125, 112, 112, 3) ou (125, 720, 720, 3), destiné à l'entraînement du modèle
+- un fichier .mp4 destiné à l'affichage dans l'interface utilisateur
+Le nombre de clips extraits par classe est plafonné, comme détaillé en section 3.2, afin de limiter le déséquilibre. À la fin, nous avions quand même 700 giga d'extraits vidéos téléchargés.
+#### Formatage pour le modèle (prepare_data.py)
+En parallèle des clips vidéo, un fichier matches.pkl est généré à partir des features préextraites et des annotations. Ce fichier contient pour chaque match un dictionnaire structuré incluant l'identifiant du match, les chemins vers les fichiers de features pour chaque mi-temps, et la liste des événements avec leur label, leur mi-temps et leur timestamp en secondes.
 
 ### 3.4 Format des données en entrée du modèle
+Les données préparées sont mises à disposition du modèle sous deux formats complémentaires, selon l'architecture utilisée.
+#### Format features préextraites (matches.pkl)
+Pour la baseline et les modèles légers de type LSTM ou Transformer, le fichier matches.pkl constitue l'entrée principale. Il s'agit d'une liste de dictionnaires, un par match, structurés comme suit :
+```Python
+{
+    "match_id":        "england_epl/2014-2015/Chelsea_Burnley",
+    "features_path_1": "chemin/vers/1_ResNET_TF2_PCA512.npy",  # (N, 512)
+    "features_path_2": "chemin/vers/2_ResNET_TF2_PCA512.npy",  # (M, 512)
+    "events": [
+        {
+            "label":        "Goal",
+            "half":         1,
+            "time_seconds": 1342
+        },
+        ...
+    ]
+}
+```
+Les features sont des vecteurs de 512 dimensions extraits par ResNet-152 puis réduits par ACP, échantillonnés à 2 fps. Chaque valeur représente une frame de la vidéo, soit un point temporel toutes les 0,5 secondes. Les features ne sont pas chargées en mémoire dans le fichier matches.pkl, seuls les chemins sont stockés
+#### Format clips vidéo (outputs/clips/)
+Pour les architectures plus avancées travaillant directement sur les pixels vidéo, les clips extraits sont organisés par classe dans deux sous-dossiers :
+```
+outputs/clips/
+├── npy/                        <- entraînement du modèle
+│   ├── Goal/
+│   │   ├── 0001.npy            # shape : (125, 720, 720, 3)
+│   │   └── ...
+│   └── ...
+└── mp4/                        <- affichage dans l'interface
+    ├── Goal/
+    │   ├── 0001.mp4
+    │   └── ...
+    └── ...
+```
+Chaque fichier .npy contient une séquence de frames brutes de dimensions (125, 720, 720, 3). 
+Les fichiers .mp4 correspondants sont destinés à l'interface utilisateur, permettant d'afficher les moments clés détectés.
 
 ---
 
