@@ -169,121 +169,141 @@ Les fichiers .mp4 correspondants sont destinés à l'interface utilisateur, perm
 
 ### 5.1 Métriques d'évaluation
 
-Pour évaluer les performances du modèle Video MAE sur la tâche d'action spotting,
-quatre métriques principales ont été retenues, en cohérence avec le benchmark
-SoccerNet.
+Pour évaluer les performances du modèle VideoMAE sur la tâche de détection
+d'événements, quatre métriques principales ont été retenues, en cohérence
+avec les standards du benchmark SoccerNet.
 
 #### 5.1.1 mAP — mean Average Precision
 
-La mAP (mean Average Precision) est la métrique de référence pour l'action spotting
-sur SoccerNet. Elle mesure la capacité du modèle à détecter les bons événements au
-bon moment, en tenant compte à la fois de la précision de la classification et de la
-précision temporelle de la détection.
-
-Pour chaque classe d'événement $c$, on calcule l'Average Precision (AP) en comparant
-les prédictions triées par score de confiance aux annotations de référence. La mAP
-est ensuite la moyenne des AP sur toutes les classes :
+La mAP est la métrique de référence pour l'action spotting sur SoccerNet.
+Elle mesure la capacité du modèle à détecter les bons événements au bon
+moment, en tenant compte à la fois de la précision de la classification et
+de la précision temporelle de la détection. Pour chaque classe d'événement
+$c$, on calcule l'Average Precision (AP) en comparant les prédictions triées
+par score de confiance aux annotations de référence, puis la mAP est obtenue
+en faisant la moyenne des AP sur toutes les classes :
 
 $$\text{mAP} = \frac{1}{C} \sum_{c=1}^{C} AP_c$$
 
 #### 5.1.2 Précision et Rappel
 
-La **précision** mesure, parmi tous les événements détectés par le modèle, la
-proportion de vrais positifs :
+La **précision** mesure, parmi tous les événements détectés par le modèle,
+la proportion de vrais positifs :
 
 $$\text{Précision} = \frac{TP}{TP + FP}$$
 
-Le **rappel** mesure, parmi tous les événements réellement présents dans le match,
-la proportion que le modèle a effectivement détectée :
+Le **rappel** mesure, parmi tous les événements réellement présents dans
+le match, la proportion que le modèle a effectivement détectée :
 
 $$\text{Rappel} = \frac{TP}{TP + FN}$$
 
-Ces deux métriques sont calculées en macro-average sur l'ensemble des classes
-d'événements afin de traiter équitablement les classes rares (cartons rouges) et
-les classes fréquentes (tirs).
+Ces deux métriques sont calculées en macro-average sur l'ensemble des
+classes afin de traiter équitablement les classes rares comme les cartons
+rouges et les classes fréquentes comme les tirs — ce qui est particulièrement
+important dans un dataset aussi déséquilibré que SoccerNet.
 
 #### 5.1.3 Erreur temporelle moyenne
 
-L'erreur temporelle moyenne mesure l'écart en secondes entre le timestamp prédit
-par le modèle et le timestamp réel de l'événement dans la vidéo. Un événement est
-considéré correctement localisé s'il se trouve dans une fenêtre de ±5 secondes
-autour de la vérité terrain.
+L'erreur temporelle moyenne mesure l'écart en secondes entre le timestamp
+prédit par le modèle et le timestamp réel de l'événement. Un événement est
+considéré correctement localisé s'il se trouve dans une fenêtre de ±5
+secondes autour de la vérité terrain, ce qui correspond à la tolérance
+standard définie par le benchmark SoccerNet.
 
 #### 5.1.4 F1-score par classe
 
-Le F1-score est la moyenne harmonique de la précision et du rappel. Il est calculé
-individuellement pour chaque classe d'événement afin d'identifier les catégories
-que le modèle détecte bien et celles qui posent problème.
+Le F1-score est la moyenne harmonique de la précision et du rappel, calculé
+individuellement pour chaque classe d'événement afin d'identifier précisément
+les catégories que le modèle détecte bien et celles qui posent problème :
 
 $$F1 = 2 \times \frac{\text{Précision} \times \text{Rappel}}{\text{Précision} + \text{Rappel}}$$
+
+---
 
 ### 5.2 Résultats d'évaluation
 
 #### 5.2.1 Métriques globales
 
-*(Insérer ici la Figure 5 — tableau des métriques)*
+*(Figure — tableau des métriques)*
 
-| Métrique | Valeur |
-|---|---|
-| Précision macro | *à compléter* |
-| Rappel macro | *à compléter* |
-| F1-score macro | *à compléter* |
-| Erreur temporelle moyenne | *à compléter* |
+| Métrique          | Valeur |
+|-------------------|--------|
+| Précision macro   | 43.3%  |
+| Rappel macro      | 44.3%  |
+| F1-score macro    | 43.1%  |
+
+Le modèle atteint un F1-score macro de 43.1%, avec une précision et un
+rappel quasi symétriques, ce qui indique que le balancement des classes
+appliqué lors de l'entraînement a bien fonctionné : le modèle ne penche
+ni vers la sur-détection ni vers la sous-détection de manière systématique.
 
 #### 5.2.2 Performances par classe d'événement
 
-*(Insérer ici la Figure 3 — F1-score par classe)*
+*(Figure — F1-score par classe)*
 
-L'analyse par classe révèle des disparités importantes entre les types d'événements.
-Les buts obtiennent généralement les meilleurs scores car ils s'accompagnent de
-réactions visuelles distinctives (célébrations, regroupements de joueurs). Les
-corners et les tirs sont plus difficiles à distinguer visuellement, ce qui explique
-leurs scores plus faibles.
+L'analyse par classe révèle des disparités très importantes, avec des
+F1-scores allant de 0% à 78.7% selon la catégorie. Yellow_card (78.7%),
+Corner (74.0%) et Direct_free-kick (67.5%) ressortent nettement au-dessus
+de la moyenne grâce à leurs indices visuels caractéristiques et récurrents,
+tandis que Shots_on_target (34.2%) et Shots_off_target (31.5%) souffrent
+d'une confusion mutuelle structurelle, la distinction entre tir cadré et
+non cadré reposant sur la trajectoire finale du ballon, une information
+difficilement capturable dans une fenêtre de 16 frames. Red_card, Penalty
+et Yellow_red_card restent à 0% malgré le balancement, leurs exemples
+étant trop rares pour être appris correctement.
 
 #### 5.2.3 Matrice de confusion
 
-*(Insérer ici la Figure 4 — matrice de confusion)*
+*(Figure — matrice de confusion)*
 
-La matrice de confusion permet d'identifier les confusions les plus fréquentes
-entre classes. On observe notamment des confusions entre tirs et corners, deux
-événements qui partagent des caractéristiques visuelles proches (ballon en jeu
-dans la zone de surface).
+La matrice de confusion confirme ces observations et permet d'identifier
+trois patterns de confusion structurels : une confusion symétrique entre
+Shots_on_target et Shots_off_target (17 cas dans chaque sens), une
+absorption de Goal par Direct_free-kick et Offside (6 cas chacun) due
+à des séquences d'arrêt de jeu visuellement similaires, et une absence
+quasi totale de prédictions correctes pour les classes rares comme Penalty,
+dont les 7 instances sont entièrement absorbées par Direct_free-kick et Goal.
 
 #### 5.2.4 Courbes d'entraînement
 
-*(Insérer ici la Figure 6 — courbes de loss et mAP)*
+*(Figure — courbes de loss et F1)*
 
-Les courbes de loss montrent une convergence stable du modèle sans signe
-d'overfitting majeur. La mAP sur le jeu de validation progresse régulièrement
-jusqu'à se stabiliser autour de l'epoch *X*, ce qui justifie le choix de
-sauvegarder le checkpoint `best.pth` à cette epoch.
+Les courbes de loss montrent une convergence stable sans signe d'overfitting
+majeur, et le F1-score macro sur la validation progresse régulièrement
+avant de se stabiliser, ce qui justifie le choix de sauvegarder le
+checkpoint `best_model/` à l'epoch correspondant au meilleur score de
+validation.
 
 #### 5.2.5 Analyse du seuil de confiance
 
-*(Insérer ici la Figure 2 — précision vs rappel selon le seuil)*
+*(Figure — précision vs rappel selon le seuil)*
 
-La courbe précision/rappel en fonction du seuil de confiance montre le compromis
-classique entre ces deux métriques. Un seuil de 0.5 offre un bon équilibre pour
-une utilisation générale. Dans un contexte où les fausses détections sont
-pénalisantes (rapport officiel), un seuil plus élevé (0.7) est recommandé.
-À l'inverse, pour une utilisation exploratoire où on ne veut manquer aucun
-événement, un seuil plus bas (0.3) est préférable.
+La courbe précision/rappel en fonction du seuil montre une zone de stabilité
+entre 0.1 et 0.6, où les deux métriques oscillent autour de 0.45–0.52 sans
+écart marqué, ce qui confirme que le seuil par défaut de 0.5 est un choix
+raisonnable. Au-delà de 0.65 en revanche, les deux courbes chutent
+brutalement jusqu'à environ 0.17 à seuil 0.9, ce qui signifie que le
+modèle produit rarement des prédictions à haute confiance — comportement
+cohérent avec le nombre de classes similaires et la difficulté intrinsèque
+de la tâche.
 
 ---
 
-### 5.4 Discussion
+### 5.3 Discussion
 
-Les résultats obtenus démontrent la faisabilité de l'approche SlowFast pour
-l'action spotting sur des matchs de soccer. Les performances restent inférieures
-aux modèles state-of-the-art du benchmark SoccerNet, ce qui s'explique par
-plusieurs facteurs :
-
-- **Volume de données limité** : le prototype a été entraîné sur un sous-ensemble
-  réduit de SoccerNet en raison des contraintes de temps de calcul.
-- **Vidéos brutes** : l'utilisation des vidéos brutes plutôt que des features
-  pré-extraites augmente significativement le temps d'entraînement.
-- **Déséquilibre des classes** : certains événements (cartons rouges) sont
-  beaucoup plus rares que d'autres (tirs), ce qui pénalise les métriques macro.
+Les résultats obtenus confirment la faisabilité de l'approche VideoMAE
+fine-tuné pour la détection d'événements sur des vidéos de soccer en
+résolution 720p, tout en mettant en évidence les limites actuelles de
+la configuration expérimentale. Plusieurs facteurs expliquent les
+performances modestes en valeur absolue : le sous-ensemble de SoccerNet
+utilisé reste de taille réduite par rapport aux standards du benchmark,
+le traitement de vidéos brutes en 720p allonge significativement les temps
+d'inférence comparé à des features pré-extraites, et la résolution d'entrée
+réduite à 112px lors du fine-tuning entraîne une perte d'information pour
+les événements nécessitant la détection de détails fins comme le geste de
+l'arbitre pour un carton rouge. Ces résultats constituent néanmoins une
+base de référence solide pour la comparaison avec les autres configurations
+expérimentées dans le cadre de ce projet.
 
 ---
 
@@ -300,6 +320,123 @@ plusieurs facteurs :
 ## 7. Résultats globaux et discussion
 
 ### 7.1 Synthèse des performances
+
+Les résultats présentés dans cette section portent sur la configuration
+VideoMAE fine-tuné à 112px d'entrée, entraîné sur des clips extraits de
+vidéos SoccerNet en résolution 720p avec balancement des classes. Les
+métriques ont été calculées sur le jeu de validation (20% des données,
+split stratifié, `random_state=42`) via le script d'évaluation dédié.
+
+#### 7.1.1 Métriques globales
+
+*(Figure — tableau des métriques)*
+
+| Métrique          | Valeur |
+|-------------------|--------|
+| Précision macro   | 43.3%  |
+| Rappel macro      | 44.3%  |
+| F1-score macro    | 43.1%  |
+
+Le modèle atteint un F1-score macro de **43.1%**, avec une précision et
+un rappel équilibrés (43.3% et 44.3% respectivement). Cette symétrie
+indique que le balancement des classes a permis d'éviter un biais systématique
+vers la sur- ou sous-détection : le modèle ne favorise ni les fausses alertes
+ni les omissions de manière générale. Les performances restent cependant
+modestes, ce qui s'explique par la difficulté intrinsèque de la tâche et
+les contraintes de la configuration expérimentale décrites en section 5.4.
+
+#### 7.1.2 Performances par classe d'événement
+
+*(Figure — F1-score par classe)*
+
+L'analyse par classe révèle des disparités importantes, avec des F1-scores
+allant de 0% à 78.7% selon la catégorie d'événement.
+
+Les classes les mieux détectées sont **Yellow_card (78.7%)**, **Corner (74.0%)**
+et **Direct_free-kick (67.5%)**. Ces événements bénéficient d'indices visuels
+caractéristiques et récurrents : geste de l'arbitre brandissant un carton,
+regroupement des joueurs en bord de terrain pour les corners, ou position
+spécifique du ballon pour les coups francs directs. Leur représentation
+relativement équilibrée dans le dataset après balancement contribue également
+à leurs bons résultats.
+
+Les classes intermédiaires — **Foul (62.2%)**, **Offside (59.3%)**,
+**Goal (56.7%)** et **Indirect_free-kick (53.1%)** — affichent des scores
+au-dessus de la moyenne mais révèlent des ambiguïtés visuelles confirmées
+par la matrice de confusion. En particulier, 13 cas d'Indirect_free-kick
+sont classifiés comme Yellow_card, ce qui pourrait s'expliquer par une
+co-occurrence fréquente de ces événements dans les séquences d'entraînement.
+
+Les classes faibles — **Shots_on_target (34.2%)** et **Shots_off_target
+(31.5%)** — souffrent d'une confusion mutuelle structurelle : 17 exemples
+de chaque classe sont confondus l'un avec l'autre. La distinction entre
+tir cadré et non cadré repose sur la trajectoire finale du ballon, information
+difficilement capturable dans une fenêtre temporelle courte de 16 frames.
+
+Enfin, trois classes demeurent en **échec total (F1 = 0%)** : **Red_card**,
+**Penalty** et **Yellow_red_card**. Malgré le balancement, ces événements
+restent très rares dans SoccerNet et leurs exemples sont absorbés par des
+classes visuellement proches : les penaltys sont confondus avec
+Direct_free-kick (5 cas) et Goal (2 cas), tandis que les cartons rouges
+sont quasi absents des prédictions.
+
+#### 7.1.3 Matrice de confusion
+
+*(Figure — matrice de confusion)*
+
+La matrice de confusion confirme et précise les observations précédentes.
+Les éléments diagonaux les plus élevés correspondent aux classes les mieux
+apprises : Direct_free-kick (51), Yellow_card (50), Corner (47) et
+Goal (38). On observe trois patterns de confusion structurels :
+
+- **Tirs** : les classes Shots_on_target et Shots_off_target sont confondues
+  mutuellement (17 cas dans chaque sens), formant un bloc de confusion
+  symétrique qui traduit l'incapacité du modèle à distinguer ces deux
+  catégories sans information sur la destination finale du ballon.
+- **Événements d'arrêt de jeu** : Goal est confondu avec Direct_free-kick
+  (6 cas) et Offside (6 cas), deux situations qui génèrent des séquences
+  d'arrêt de jeu visuellement similaires.
+- **Classes rares** : Penalty (7 instances au total) n'est jamais prédit
+  correctement, ses exemples étant absorbés par Direct_free-kick et Goal.
+
+#### 7.1.4 Analyse du seuil de confiance
+
+*(Figure — précision vs rappel selon le seuil)*
+
+La courbe précision/rappel en fonction du seuil de confiance montre une
+zone de stabilité entre 0.1 et 0.6, où les deux métriques oscillent autour
+de 0.45–0.52 sans écart marqué. Cela indique que le modèle calibre
+raisonnablement ses scores de confiance dans cette plage, et que le **seuil
+par défaut de 0.5 constitue un choix justifié**.
+
+Au-delà de 0.65, les deux courbes chutent brutalement pour atteindre environ
+0.17 à seuil 0.9. Cette dégradation rapide signifie que le modèle produit
+rarement des prédictions à haute confiance, comportement cohérent avec la
+difficulté du problème et le nombre de classes similaires. Dans ce contexte,
+augmenter le seuil pour filtrer les prédictions peu confiantes dégraderait
+massivement le rappel sans gain suffisant en précision.
+
+### 7.1.5 Discussion
+
+Les résultats obtenus valident la faisabilité de l'approche VideoMAE pour
+la détection d'événements sur vidéos de soccer en résolution 720p. Le
+balancement des classes a permis d'obtenir un comportement global équilibré
+entre précision et rappel, ce qui constitue un prérequis pour une comparaison
+fiable entre configurations.
+
+Plusieurs facteurs limitent néanmoins les performances absolues. Le
+sous-ensemble de SoccerNet utilisé reste de taille réduite au regard des
+standards du benchmark, et le traitement de vidéos brutes en 720p allonge
+significativement les temps d'inférence par rapport à des features
+pré-extraites. Par ailleurs, la résolution d'entrée réduite à 112px lors
+du fine-tuning peut entraîner une perte d'information pour les événements
+nécessitant la détection de détails fins, comme le geste de l'arbitre pour
+un carton rouge ou la trajectoire précise d'un tir.
+
+Ces résultats serviront de référence pour la comparaison avec les autres
+configurations expérimentées dans le cadre de ce projet, notamment les
+variantes entraînées sur des clips de résolution différente ou sans
+balancement des classes.
 
 ### 7.2 Comparaison avec la baseline SoccerNet
 
