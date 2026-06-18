@@ -31,17 +31,9 @@ def main():
     # 6. Sauvegarder
     save_model(model, scaler, label_to_idx, idx_to_label)
     
-    print("=" * 60)
-    print("ENTRAINEMENT TERMINE")
-    print("=" * 60 + "\n")
-    
-    # 7. Évaluation des hyperparamètres avec le modèle entraîné
-    print("\n" + "=" * 60)
-    print("LANCEMENT DE L'EVALUATION DES HYPERPARAMÈTRES")
-    print("=" * 60 + "\n")
-    
+    # 7. Évaluation et hyperparamètres avec le modèle entraîné
     try:
-        from evalution_hyperparams import run_evaluation
+        from Eval.evalution import run_evaluation
         run_evaluation(
             model=model,
             X_test=X_test,
@@ -55,6 +47,10 @@ def main():
         import traceback
         traceback.print_exc()
         print("[WARNING] L'entraînement s'est terminé correctement, mais l'évaluation a échoué.")
+
+    
+    print("ENTRAINEMENT TERMINE")
+  
 
 
 if __name__ == "__main__":
